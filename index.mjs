@@ -23,6 +23,33 @@ export const name = 'dsh-perlica-ding'
 /** Hard dependency: the subprocess seam used to play sounds. */
 export const inject = ['subprocess']
 
+/**
+ * Tool names that count as "executing a task". Read-only / lookup tools
+ * (read, grep, glob, web_search, skill, ...) do NOT count: a plain Q&A that
+ * happens to consult a file or search the web stays silent.
+ *
+ * Override via config.execTools (array of tool names; empty array = every
+ * tool counts, i.e. the old behavior).
+ */
+const DEFAULT_EXEC_TOOLS = [
+  'pwsh',
+  'bash',
+  'write',
+  'edit',
+  'subagent',
+  'subagent_fork',
+  'workflow',
+  'ralph',
+  'job_kill',
+  'create_goal',
+  'update_goal',
+  'todo_write',
+  'cordis_define',
+  'cordis_run',
+  'cordis_stop',
+  'cordis_undefine',
+]
+
 /** Plugin configuration, validated at load by the Loader. */
 export const Config = z.object({
   /** Master switch; set false to silence everything. */
@@ -34,6 +61,11 @@ export const Config = z.object({
    * Empty string falls back to the process cwd, then to bundled OS sounds.
    */
   soundDir: z.string().default(''),
+  /**
+   * Tool names that count as executing a task. Empty array = every tool
+   * counts. Defaults to the built-in execution whitelist (DEFAULT_EXEC_TOOLS).
+   */
+  execTools: z.array(z.string()).default(DEFAULT_EXEC_TOOLS),
 })
 
 /** Fallback system sounds per platform and kind. */
@@ -153,6 +185,9 @@ export function apply(ctx, config) {
 
   ctx.on('tools/result', (exec) => {
     if (!exec || !exec.agent || !isRoot(exec.agent)) return
+    // Only execution-class tools count as "doing a task". With an empty
+    // execTools config every tool counts (old behavior).
+    if (cfg.execTools.length > 0 && !cfg.execTools.includes(exec.name)) return
     lastTool.set(exec.agent.id, Date.now())
   })
 

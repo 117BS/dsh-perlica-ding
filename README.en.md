@@ -22,8 +22,8 @@ This plugin's sound style is inspired by her — **clean, concise, with a touch 
 | Scenario | Trigger | Sound file |
 |---|---|---|
 | 🗂️ Plan ready | Turn closes while plan mode is active | `plan.wav` |
-| ✅ Task done | Turn closes and tools were used | `done.wav` |
-| 💬 Plain chat | No tools used | Silent |
+| ✅ Task done | Turn closes and **execution-class tools** were used (file writes / commands / subagents / workflows …) | `done.wav` |
+| 💬 Plain chat | No tools used, or only lookup tools (read / web_search …) | Silent |
 | 🙋 Needs your input | `ask_user_question` tool / approval request | `ask.wav` |
 | ⚠️ Error | Agent turn errored | `fail.wav` |
 
@@ -87,6 +87,7 @@ plugins:
     enabled: true        # master switch
     debounceMs: 2500     # min gap between same-kind sounds (ms)
     soundDir: ""         # custom sound dir; empty = workspace root
+    execTools: []        # tools that count as "executing a task"; empty = every tool counts (legacy)
 ```
 
 ## 🧪 Verify

@@ -96,10 +96,10 @@ scenario('plan mode produces plan', [
 ], 'plan')
 ctx._planActive = false
 
-// 2. tool used -> done
-scenario('task with tools -> done', [
+// 2. exec tool used -> done
+scenario('task with exec tools -> done', [
   ['agent/inbox/claimed', { agent: rootAgent }],
-  ['tools/result', { agent: rootAgent }],
+  ['tools/result', { agent: rootAgent, name: 'write' }],
   ['agent/turn-stopping', { agent: rootAgent }],
 ], 'done')
 
@@ -108,6 +108,44 @@ scenario('plain chat -> silent', [
   ['agent/inbox/claimed', { agent: rootAgent }],
   ['agent/turn-stopping', { agent: rootAgent }],
 ], 'none')
+
+// 3b. Q&A that only used lookup tools (web_search/read) -> silent
+scenario('chat with lookup tools only -> silent', [
+  ['agent/inbox/claimed', { agent: rootAgent }],
+  ['tools/result', { agent: rootAgent, name: 'web_search' }],
+  ['tools/result', { agent: rootAgent, name: 'read' }],
+  ['agent/turn-stopping', { agent: rootAgent }],
+], 'none')
+
+// 3c. old behavior: execTools = [] makes every tool count
+const handlers2 = {}
+const ctx2 = {
+  get(service) {
+    if (service === 'subprocess') {
+      return {
+        spawn(spec) {
+          ctx2._lastSpawn = spec.argv
+          return { done: new Promise(() => {}) }
+        },
+      }
+    }
+    if (service === 'agents') return { roots: () => [rootAgent] }
+    if (service === 'planMode') return { get: () => ({ active: ctx2._planActive === true }) }
+    return undefined
+  },
+  on(event, listener) { handlers2[event] = listener },
+  _lastSpawn: null,
+  _planActive: false,
+}
+const cfgAll = Config({ soundDir: dir, debounceMs: 100, execTools: [] })
+apply(ctx2, cfgAll)
+const fire2 = (event, ...args) => handlers2[event](...args)
+console.log('scenario: execTools=[] keeps legacy behavior')
+ctx2._lastSpawn = null
+fire2('agent/inbox/claimed', { agent: rootAgent })
+fire2('tools/result', { agent: rootAgent, name: 'web_search' })
+fire2('agent/turn-stopping', { agent: rootAgent })
+assert(ctx2._lastSpawn !== null, 'something played (legacy: lookup tool counts)')
 
 // 4. ask tool -> ask
 scenario('ask_user_question -> ask', [
