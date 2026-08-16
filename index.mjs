@@ -92,7 +92,12 @@ const SYSTEM_SOUNDS = {
 
 /** Encode a JS string as base64 of its UTF-16LE bytes (PowerShell -EncodedCommand). */
 function utf16leToBase64(text) {
-  return Buffer.from(text, 'utf16le').toString('base64')
+  let bytes = ''
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i)
+    bytes += String.fromCharCode(code & 0xff, code >>> 8)
+  }
+  return btoa(bytes)
 }
 
 export function apply(ctx, config) {
