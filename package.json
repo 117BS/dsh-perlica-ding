@@ -1,7 +1,7 @@
 {
   "name": "dsh-task-ding",
   "version": "0.1.0",
-  "description": "分级任务提示音插件：计划模式出方案、任务执行完成、需要你回应、出错时播放不同提示音，普通问答保持安静。Tiered sound notifications for DeepSeek Harness: plan ready, task done, needs your input, and error tones.",
+  "description": "佩丽卡终端 (Perlica Terminal)：明日方舟终末地佩丽卡主题的分级任务提示音插件。计划出方案、任务完成、需要你回应、出错时播放不同提示音，普通问答静音。Perlica-themed tiered sound notifications for DeepSeek Harness: plan ready, task done, needs your input, error tones.",
   "type": "module",
   "main": "index.mjs",
   "exports": {
@@ -34,6 +34,12 @@
     "beep",
     "ding",
     "task-complete",
+    "arknights",
+    "endfield",
+    "perlica",
+    "佩丽卡",
+    "明日方舟",
+    "终末地",
     "提示音"
   ],
   "license": "MIT",
