@@ -3,6 +3,8 @@
 > 「我们不是理想的陈述者，而是理想的践行者。」
 > —— 佩丽卡，终末地工业监督
 
+[![Awesome DSH Plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com)
+
 ![佩丽卡 - 终末地工业监督](assets/avatar.png)
 
 [English](README.en.md) | **简体中文**

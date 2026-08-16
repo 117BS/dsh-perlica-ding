@@ -3,6 +3,8 @@
 > "We are not the ones who state ideals — we are the ones who carry them out."
 > —— Perlica, Supervisor of Endfield Industries
 
+[![Awesome DSH Plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com)
+
 ![Perlica - Supervisor of Endfield Industries](assets/avatar.png)
 
 [简体中文](README.md) | **English**
