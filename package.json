@@ -19,7 +19,7 @@
     "cordis.patch.yml",
     "assets",
     "README.md",
-    "README.zh.md",
+    "README.en.md",
     "LICENSE"
   ],
   "scripts": {

@@ -1,125 +1,128 @@
-# dsh-task-ding · Perlica Terminal
+# dsh-task-ding · 佩丽卡终端 (Perlica Terminal)
 
-> "We are not the ones who state ideals — we are the ones who carry them out."
-> —— Perlica, Supervisor of Endfield Industries
+> 「我们不是理想的陈述者，而是理想的践行者。」
+> —— 佩丽卡，终末地工业监督
 
-![Perlica - Supervisor of Endfield Industries](assets/avatar.png)
+![佩丽卡 - 终末地工业监督](assets/avatar.png)
 
-🔔 A **Perlica-themed** (Arknights: Endfield) tiered sound notification plugin for DeepSeek Harness.
+[English](README.en.md) | **简体中文**
 
-Perlica reports your agent's status in her calm, concise, terminal-announcement tone: plan ready, task done, needs your input, error — each with its own sound. Plain conversation stays silent. Custom sounds (TTS voice supported) and audible even when the window is in the background.
+🔔 **佩丽卡主题** DeepSeek Harness 分级任务提示音插件。
 
-## 📖 About Perlica
+由终末地工业监督佩丽卡为您播报任务状态：计划出方案、任务执行完成、需要您回应、执行出错时，以**终端播报**的口吻播放不同提示音；普通问答保持安静。声音文件可自定义（含佩丽卡风格 TTS 语音文案），窗口在后台也能听到。
 
-Perlica is the **Supervisor and official spokesperson of Endfield Industries**, an outstanding Protocol Technology specialist who manages the development and application of Protocol Originium technology and the day-to-day operations of the Dreadnought. She handles crises with **decisive calm**, always moving between bases and strongholds for the stable development of Endfield.
+## 📖 关于佩丽卡
 
-This plugin's sound style is inspired by her — **clean, concise, with a touch of technical bureaucracy**, addressing you as 「Administrator」.
+佩丽卡（Perlica），《明日方舟：终末地》登场角色，**终末地工业的监督和官方发言人**，杰出的协议技术专家。负责管理和推进协议源石技术的开发与应用，承担帝江号的管理工作，同时也是一名危机处理小组成员。
 
-## ✨ Features
+她**果断而冷静**地应对各种危机，来回奔波于文明环带各处。本插件的提示音风格即取材于她——**简洁、干练、带技术官僚感的终端播报**，称呼您为「管理员」。
 
-| Scenario | Trigger | Sound file |
+## ✨ 功能
+
+| 场景 | 触发条件 | 音效文件 |
 |---|---|---|
-| 🗂️ Plan ready | Turn closes while plan mode is active | `plan.wav` |
-| ✅ Task done | Turn closes and tools were used | `done.wav` |
-| 💬 Plain chat | No tools used | Silent |
-| 🙋 Needs your input | `ask_user_question` tool / approval request | `ask.wav` |
-| ⚠️ Error | Agent turn errored | `fail.wav` |
+| 🗂️ 计划出方案 | 回合结束时仍处于计划模式 | `plan.wav` |
+| ✅ 任务完成 | 回合结束且本回合调用过工具 | `done.wav` |
+| 💬 普通问答 | 纯对话、没用工具 | 静音 |
+| 🙋 需要你回应 | agent 提问 / 审批请求 | `ask.wav` |
+| ⚠️ 出错 | 回合报错 | `fail.wav` |
 
-Also:
+其他特性：
 
-- **Root conversation only**: subagents do not beep individually
-- **Debounce**: 2.5s per kind, no sound storms
-- **Custom sounds**: drop wav files into the sound dir, no code changes
-- **Cross-platform**: Windows (SoundPlayer) / macOS (afplay) / Linux (paplay/aplay)
-- **Configurable**: master switch, debounce, sound directory
+- **只响主对话**：子代理/后台任务完成时不单独响，随主回合统一收尾
+- **防抖**：每档独立 2.5 秒间隔，不会连响
+- **可自定义音效**：把 wav 文件放到指定目录即可，无需改代码
+- **跨平台**：Windows (SoundPlayer) / macOS (afplay) / Linux (paplay/aplay)
+- **可配置**：总开关、防抖间隔、音效目录
 
-## 🎙️ Recommended voice lines (Perlica style)
+## 🎙️ 推荐语音文案（佩丽卡风格）
 
-Pick your favorites and generate them with any TTS tool (Edge TTS / CapCut / Azure):
+佩丽卡风格的 TTS 语音文案，挑选顺口的用 AI 语音合成（如 Edge TTS / 剪映 / 魔音工坊）生成 wav 即可：
 
-**plan.wav — Plan ready**
+**plan.wav —— 计划出方案**
 
-> ① "The operation plan is confirmed. Execute accordingly."
-> ② "The plan is ready, data complete. Confirm to proceed."
-> ③ "Deployment ready. On your confirmation, entering execution phase."
+> ① 「作战计划已确认完毕。接下来，按这个执行。」
+> ② 「方案已生成，数据完整。确认后即可推进。」
+> ③ 「方案部署就绪。确认后，进入执行阶段。」
 
-**done.wav — Task done**
+**done.wav —— 任务完成**
 
-> ① "Task executed. All indicators normal."
-> ② "Task complete. Results archived. Ready for review."
-> ③ "Operation finished, terminal archived. No anomalies this run."
+> ① 「任务执行完毕，所有指标正常。」
+> ② 「任务完成，结果已归档，可以验收了。」
+> ③ 「作业完成，终端已归档。本次任务无异常。」
 
-**ask.wav — Needs your input**
+**ask.wav —— 需要你回应**
 
-> ① "Terminal report: pending decision requires the Administrator's ruling."
-> ② "Pending confirmation. This terminal cannot decide. Please instruct."
-> ③ "Authorization check failed: this decision exceeds local permissions. Please authorize."
+> ① 「终端上报：存在待决事项，需要操作员裁决。」
+> ② 「检测到待确认项目。本终端无权决定，请操作员指示。」
+> ③ 「权限校验失败：该项决定超出本机权限。请操作员授权。」
 
-**fail.wav — Error**
+**fail.wav —— 出错**
 
-> ① "Warning: execution anomaly, task interrupted. Cause recorded. Please inspect."
-> ② "Task failed. System halted. Awaiting your instruction."
-> ③ "Fault detected: objective not reached. Terminal locked. Please troubleshoot."
+> ① 「警告：执行异常，任务中断。原因已记录，请检查。」
+> ② 「任务失败。系统已停止本次作业，等待处理指令。」
+> ③ 「故障检测：任务未完成。终端已锁定，请排查。」
 
-**Voice tips**: flat tone, steady pace, clean ending; a slight mechanical pause after statements adds the tech feel.
+**练音小建议**：语气放平、语速偏稳、尾音收干净；科技感可以靠一点点"机械感"的停顿（如「确认完毕。」后顿一下）。
 
-## 📦 Install
+## 📦 安装
 
-### From npm (recommended)
+### 方法一：从 npm 安装（推荐）
 
 ```bash
 dsh plugin --profile web add dsh-task-ding
 ```
 
-Restart the web profile to activate:
+安装后**重启 dsh web profile** 生效：
 
 ```bash
 dsh web restart
 ```
 
-### From GitHub
+### 方法二：从 GitHub 安装
 
 ```bash
-dsh plugin --profile web add https://github.com/<your-username>/dsh-task-ding
+dsh plugin --profile web add https://github.com/117BS/dsh-task-ding
 ```
 
-### Local development
+### 方法三：本地开发安装
 
 ```bash
-dsh plugin --profile web add /path/to/dsh-task-ding
+dsh plugin --profile web add D:\deepseek\dsh-task-ding
 ```
 
-## 🎵 Sound files
+## 🎵 音效文件
 
-Drop these files into your **workspace root** (or the configured `soundDir`); the plugin prefers them and falls back to bundled OS sounds:
+把以下文件放到**当前工作区根目录**（或配置的 `soundDir`），插件会优先使用；找不到时回退系统自带提示音：
 
 ```
-plan.wav   — plan ready
-done.wav   — task done
-ask.wav    — needs your input
-fail.wav   — error (optional)
+plan.wav   — 计划出方案
+done.wav   — 任务完成
+ask.wav    — 需要你回应
+fail.wav   — 出错（可选）
 ```
 
-Requirements:
+要求：
 
-- Must be real **WAV** (PCM). If your TTS tool exports MP3, convert first: `ffmpeg -i input.mp3 -acodec pcm_s16le plan.wav`
-- Fixed filenames as above; replacement takes effect immediately, no restart
+- 必须是真正的 **WAV** 格式（PCM）。TTS 工具如果导出 MP3，需要转码（可用 ffmpeg：`ffmpeg -i input.mp3 -acodec pcm_s16le plan.wav`）
+- 文件名固定为上面四个，放到 `D:\deepseek\`（即你的工作区）即可
+- 替换后立即生效，无需重启
 
-## ⚙️ Configuration
+## ⚙️ 配置
 
-In the profile's `cordis.yml` or the user patch layer:
+在 profile 的 `cordis.yml` 或用户 patch 层中配置：
 
 ```yaml
 plugins:
   dsh-task-ding:
-    enabled: true        # master switch
-    debounceMs: 2500     # min gap between same-kind sounds (ms)
-    soundDir: ""         # custom sound dir; empty = workspace root
+    enabled: true        # 总开关
+    debounceMs: 2500     # 同档音效最小间隔（毫秒）
+    soundDir: ""         # 自定义音效目录，留空则用当前工作区
 ```
 
-## 🧪 Verify
+## 🧪 验证
 
-Ask the agent to run any task (e.g. call a tool); you should hear a sound when it finishes. Or test the audio chain manually:
+安装后随便让 agent 执行一个任务（比如让它调用一次工具），任务完成时应该听到提示音。或者先手动测试声音链路：
 
 ```powershell
 $p = New-Object Media.SoundPlayer 'D:\deepseek\done.wav'; $p.PlaySync()
