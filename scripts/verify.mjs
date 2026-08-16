@@ -1,5 +1,5 @@
 /**
- * Offline smoke test for dsh-task-ding.
+ * Offline smoke test for dsh-perlica-ding.
  * Mocks a minimal Cordis ctx and drives the event sequence for each scenario,
  * asserting which sound kind would have played. No DSH runtime required.
  */
@@ -19,7 +19,7 @@ function assert(cond, label) {
 }
 
 // --- sandbox: temp sound dir with dummy wav files (only existence matters) ---
-const dir = mkdtempSync(join(tmpdir(), 'dsh-task-ding-'))
+const dir = mkdtempSync(join(tmpdir(), 'dsh-perlica-ding-'))
 for (const kind of ['plan', 'done', 'ask', 'fail']) {
   writeFileSync(join(dir, kind + '.wav'), 'not really audio, just a file')
 }
@@ -58,7 +58,7 @@ const ctx = {
 
 // --- structural contract ---
 console.log('contract:')
-assert(name === 'dsh-task-ding', `name is "${name}"`)
+assert(name === 'dsh-perlica-ding', `name is "${name}"`)
 assert(Array.isArray(inject) && inject.includes('subprocess'), 'inject declares subprocess')
 assert(Config != null, 'Config schema exported')
 assert(typeof apply === 'function', 'apply is a function')

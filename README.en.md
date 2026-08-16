@@ -1,4 +1,4 @@
-# dsh-task-ding · Perlica Terminal
+# dsh-perlica-ding · Perlica Terminal
 
 > "We are not the ones who state ideals — we are the ones who carry them out."
 > —— Perlica, Supervisor of Endfield Industries
@@ -40,7 +40,7 @@ Also:
 ### From npm (recommended)
 
 ```bash
-dsh plugin --profile web add dsh-task-ding
+dsh plugin --profile web add dsh-perlica-ding
 ```
 
 Restart the web profile to activate:
@@ -52,13 +52,13 @@ dsh web restart
 ### From GitHub
 
 ```bash
-dsh plugin --profile web add https://github.com/117BS/dsh-task-ding
+dsh plugin --profile web add https://github.com/117BS/dsh-perlica-ding
 ```
 
 ### Local development
 
 ```bash
-dsh plugin --profile web add /path/to/dsh-task-ding
+dsh plugin --profile web add /path/to/dsh-perlica-ding
 ```
 
 ## 🎵 Sound files
@@ -83,7 +83,7 @@ In the profile's `cordis.yml` or the user patch layer:
 
 ```yaml
 plugins:
-  dsh-task-ding:
+  dsh-perlica-ding:
     enabled: true        # master switch
     debounceMs: 2500     # min gap between same-kind sounds (ms)
     soundDir: ""         # custom sound dir; empty = workspace root

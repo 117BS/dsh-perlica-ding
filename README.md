@@ -1,4 +1,4 @@
-# dsh-task-ding · 佩丽卡终端 (Perlica Terminal)
+# dsh-perlica-ding · 佩丽卡终端 (Perlica Terminal)
 
 > 「我们不是理想的陈述者，而是理想的践行者。」
 > —— 佩丽卡，终末地工业监督
@@ -40,7 +40,7 @@
 ### 方法一：从 npm 安装（推荐）
 
 ```bash
-dsh plugin --profile web add dsh-task-ding
+dsh plugin --profile web add dsh-perlica-ding
 ```
 
 安装后**重启 dsh web profile** 生效：
@@ -52,13 +52,13 @@ dsh web restart
 ### 方法二：从 GitHub 安装
 
 ```bash
-dsh plugin --profile web add https://github.com/117BS/dsh-task-ding
+dsh plugin --profile web add https://github.com/117BS/dsh-perlica-ding
 ```
 
 ### 方法三：本地开发安装
 
 ```bash
-dsh plugin --profile web add D:\deepseek\dsh-task-ding
+dsh plugin --profile web add D:\deepseek\dsh-perlica-ding
 ```
 
 ## 🎵 音效文件
@@ -84,7 +84,7 @@ fail.wav   — 出错（可选）
 
 ```yaml
 plugins:
-  dsh-task-ding:
+  dsh-perlica-ding:
     enabled: true        # 总开关
     debounceMs: 2500     # 同档音效最小间隔（毫秒）
     soundDir: ""         # 自定义音效目录，留空则用当前工作区

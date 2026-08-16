@@ -1,5 +1,5 @@
 /**
- * dsh-task-ding —— Tiered task-completion sounds for DeepSeek Harness.
+ * dsh-perlica-ding —— Tiered task-completion sounds for DeepSeek Harness.
  *
  * Plays a distinct sound when an agent turn closes, depending on what the
  * turn was doing:
@@ -18,7 +18,7 @@ import { join } from 'node:path'
 import z from '@deepseek-ai/schemastery'
 
 /** Cordis plugin name (Loader entry id). */
-export const name = 'dsh-task-ding'
+export const name = 'dsh-perlica-ding'
 
 /** Hard dependency: the subprocess seam used to play sounds. */
 export const inject = ['subprocess']
@@ -112,12 +112,12 @@ export function apply(ctx, config) {
           graceMs: 3000,
         })
       } catch (error) {
-        console.error('dsh-task-ding: spawn failed', argv[0], error)
+        console.error('dsh-perlica-ding: spawn failed', argv[0], error)
         tryNext()
         return
       }
       handle.done.catch((error) => {
-        console.error('dsh-task-ding: play process failed', argv[0], error)
+        console.error('dsh-perlica-ding: play process failed', argv[0], error)
         tryNext()
       })
     }
