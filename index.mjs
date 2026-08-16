@@ -100,6 +100,23 @@ function utf16leToBase64(text) {
   return btoa(bytes)
 }
 
+/**
+ * Fold plan-mode state from the session event log: the last `plan/mode`
+ * event wins; a log with none folds to inactive. Used when the `planMode`
+ * service is unavailable in the current context.
+ */
+function foldPlanModeFromEvents(events) {
+  if (!events || !events.length) return false
+  let active = false
+  for (let i = 0; i < events.length; i++) {
+    const event = events[i]
+    if (event && event.type === 'plan/mode') {
+      active = !!(event.data && event.data.active)
+    }
+  }
+  return active
+}
+
 export function apply(ctx, config) {
   const cfg = Config(config ?? {})
   const subprocess = ctx.get('subprocess')
@@ -214,21 +231,34 @@ export function apply(ctx, config) {
   ctx.on('agent/turn-stopping', (payload) => {
     if (!payload || !payload.agent || !isRoot(payload.agent)) return
     const id = payload.agent.id
+    // Prefer the planMode service (npm environment); fall back to folding
+    // the session event log when the service is not reachable (dynamic
+    // plugin sandbox).
     let active = false
     if (planMode) {
       try {
         const state = planMode.get(payload.agent)
         active = !!(state && state.active)
       } catch (error) { /* ignore */ }
-    }
-    if (active) {
-      play('plan')
     } else {
-      const start = turnStart.get(id) || 0
-      const tool = lastTool.get(id) || 0
-      if (tool >= start) play('done')
+      try {
+        const events = payload.agent.session && payload.agent.session.events
+        active = foldPlanModeFromEvents(events)
+      } catch (error) { /* ignore */ }
     }
-    turnStart.delete(id)
-    lastTool.delete(id)
+    try {
+      if (active) {
+        play('plan')
+      } else {
+        const start = turnStart.get(id) || 0
+        const tool = lastTool.get(id) || 0
+        if (tool >= start) play('done')
+      }
+    } catch (error) {
+      console.error('dsh-perlica-ding: turn-stopping handler failed', error)
+    } finally {
+      turnStart.delete(id)
+      lastTool.delete(id)
+    }
   })
 }

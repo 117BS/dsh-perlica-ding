@@ -25,8 +25,8 @@ for (const kind of ['plan', 'done', 'ask', 'fail']) {
 }
 
 // --- fake agent ---
-const rootAgent = { id: 'root-session' }
-const childAgent = { id: 'child-session' }
+const rootAgent = { id: 'root-session', session: { events: [] } }
+const childAgent = { id: 'child-session', session: { events: [] } }
 
 // --- mock ctx ---
 const handlers = {}
@@ -95,6 +95,47 @@ scenario('plan mode produces plan', [
   ['agent/turn-stopping', { agent: rootAgent }],
 ], 'plan')
 ctx._planActive = false
+
+// 1b. planMode service missing -> fold plan/mode from session events
+const rootAgentFolded = {
+  id: 'folded-session',
+  session: { events: [
+    { type: 'message/send', data: {} },
+    { type: 'plan/mode', data: { active: true } },
+  ] },
+}
+const handlers3 = {}
+const ctx3 = {
+  get(service) {
+    if (service === 'subprocess') {
+      return {
+        spawn(spec) {
+          ctx3._lastSpawn = spec.argv
+          return { done: new Promise(() => {}) }
+        },
+      }
+    }
+    if (service === 'agents') {
+      return { roots: () => [rootAgentFolded] }
+    }
+    return undefined // no planMode service
+  },
+  on(event, listener) { handlers3[event] = listener },
+  _lastSpawn: null,
+}
+const cfg3 = Config({ soundDir: dir, debounceMs: 100 })
+apply(ctx3, cfg3)
+console.log('scenario: plan mode via session event fold (no service)')
+ctx3._lastSpawn = null
+handlers3['agent/inbox/claimed']({ agent: rootAgentFolded })
+handlers3['agent/turn-stopping']({ agent: rootAgentFolded })
+const played3 = ctx3._lastSpawn
+assert(played3 !== null, 'something played for plan (folded)')
+if (played3) {
+  const script3 = played3[played3.length - 1]
+  const decoded3 = Buffer.from(script3, 'base64').toString('utf16le')
+  assert(decoded3.includes('plan.wav'), `plays plan.wav (got: ${decoded3.match(/\w+\.wav/)?.[0] ?? '?'})`)
+}
 
 // 2. exec tool used -> done
 scenario('task with exec tools -> done', [
