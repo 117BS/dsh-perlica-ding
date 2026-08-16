@@ -14,8 +14,12 @@
  * beep individually. Each kind has its own debounce window.
  */
 import { existsSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import z from '@deepseek-ai/schemastery'
+
+/** Bundled sound directory (ships with the package: sounds/*.wav). */
+const BUNDLED_SOUNDS = join(dirname(fileURLToPath(import.meta.url)), 'sounds')
 
 /** Cordis plugin name (Loader entry id). */
 export const name = 'dsh-perlica-ding'
@@ -139,11 +143,17 @@ export function apply(ctx, config) {
     }
   }
 
-  /** First existing candidate for a sound kind: config dir -> cwd -> OS sounds. */
+  /**
+   * First existing candidate for a sound kind:
+   * config soundDir -> workspace cwd -> bundled package sounds/ -> OS sounds.
+   * Bundled sounds make the plugin work out of the box; users override by
+   * dropping their own wav into the workspace (or soundDir).
+   */
   const resolveSound = (kind) => {
     const candidates = []
     if (cfg.soundDir) candidates.push(join(cfg.soundDir, kind + '.wav'))
     candidates.push(join(process.cwd(), kind + '.wav'))
+    candidates.push(join(BUNDLED_SOUNDS, kind + '.wav'))
     const sys = (SYSTEM_SOUNDS[platform] || {})[kind] || []
     candidates.push(...sys)
     for (const candidate of candidates) {

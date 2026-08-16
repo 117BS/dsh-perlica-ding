@@ -63,7 +63,7 @@ dsh plugin --profile web add /path/to/dsh-perlica-ding
 
 ## 🎵 Sound files
 
-**Bundled Perlica voice lines** are in the `sounds/` directory: after install, copy the four wav files into your **workspace root** (or the configured `soundDir`); the plugin prefers them and falls back to bundled OS sounds:
+**Works out of the box**: the Perlica voice lines ship inside the plugin package (`sounds/` is bundled) — no configuration needed, each scenario has its own sound:
 
 ```
 plan.wav   — plan ready
@@ -72,10 +72,9 @@ ask.wav    — needs your input
 fail.wav   — error (optional)
 ```
 
-Requirements:
+**To use your own sounds**: generate wav files with any TTS tool and drop them into your **workspace root** (or the configured `soundDir`); same-named files override the bundled ones, effective immediately without restart. Lookup order: configured dir → workspace → bundled → OS fallback.
 
-- Must be real **WAV** (PCM). If your TTS tool exports MP3, convert first: `ffmpeg -i input.mp3 -acodec pcm_s16le plan.wav`
-- Fixed filenames as above; replacement takes effect immediately, no restart
+Requirement: must be real **WAV** (PCM). If your TTS tool exports MP3, convert first: `ffmpeg -i input.mp3 -acodec pcm_s16le plan.wav`.
 
 ## ⚙️ Configuration
 
