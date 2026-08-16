@@ -37,10 +37,10 @@
 
 ## 📦 安装
 
-### 方法一：从 npm 安装（推荐）
+### 方法一：从 GitHub 安装（推荐，无需 npm 账号）
 
 ```bash
-dsh plugin --profile web add dsh-perlica-ding
+dsh plugin --profile web add https://github.com/117BS/dsh-perlica-ding
 ```
 
 安装后**重启 dsh web profile** 生效：
@@ -49,10 +49,10 @@ dsh plugin --profile web add dsh-perlica-ding
 dsh web restart
 ```
 
-### 方法二：从 GitHub 安装
+### 方法二：从 npm 安装（npm 发布后可用）
 
 ```bash
-dsh plugin --profile web add https://github.com/117BS/dsh-perlica-ding
+dsh plugin --profile web add dsh-perlica-ding
 ```
 
 ### 方法三：本地开发安装
@@ -63,20 +63,20 @@ dsh plugin --profile web add D:\deepseek\dsh-perlica-ding
 
 ## 🎵 音效文件
 
-把以下文件放到**当前工作区根目录**（或配置的 `soundDir`），插件会优先使用；找不到时回退系统自带提示音：
+**仓库自带佩丽卡语音**（`sounds/` 目录）：安装后把 `sounds/` 里的四个 wav 复制到你的**工作区根目录**（或配置的 `soundDir`），插件会优先使用；找不到时回退系统自带提示音：
 
 ```
-plan.wav   — 计划出方案
-done.wav   — 任务完成
-ask.wav    — 需要你回应
-fail.wav   — 出错（可选）
+plan.wav   — 计划出方案（"作战计划已确认完毕"）
+done.wav   — 任务完成（"任务执行完毕，所有指标正常"）
+ask.wav    — 需要你回应（"终端上报：存在待决事项，需要操作员裁决"）
+fail.wav   — 出错（"警告：执行异常，任务中断"）（可选）
 ```
 
 要求：
 
 - 必须是真正的 **WAV** 格式（PCM）。TTS 工具如果导出 MP3，需要转码（可用 ffmpeg：`ffmpeg -i input.mp3 -acodec pcm_s16le plan.wav`）
-- 文件名固定为上面四个，放到 `D:\deepseek\`（即你的工作区）即可
-- 替换后立即生效，无需重启
+- 文件名固定为上面四个，放到你的工作区根目录即可
+- 想换自己的声音：替换同名文件即可，立即生效，无需重启
 
 ## ⚙️ 配置
 

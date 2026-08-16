@@ -37,10 +37,10 @@ Also:
 
 ## 📦 Install
 
-### From npm (recommended)
+### From GitHub (recommended, no npm account needed)
 
 ```bash
-dsh plugin --profile web add dsh-perlica-ding
+dsh plugin --profile web add https://github.com/117BS/dsh-perlica-ding
 ```
 
 Restart the web profile to activate:
@@ -49,10 +49,10 @@ Restart the web profile to activate:
 dsh web restart
 ```
 
-### From GitHub
+### From npm (once published)
 
 ```bash
-dsh plugin --profile web add https://github.com/117BS/dsh-perlica-ding
+dsh plugin --profile web add dsh-perlica-ding
 ```
 
 ### Local development
@@ -63,7 +63,7 @@ dsh plugin --profile web add /path/to/dsh-perlica-ding
 
 ## 🎵 Sound files
 
-Drop these files into your **workspace root** (or the configured `soundDir`); the plugin prefers them and falls back to bundled OS sounds:
+**Bundled Perlica voice lines** are in the `sounds/` directory: after install, copy the four wav files into your **workspace root** (or the configured `soundDir`); the plugin prefers them and falls back to bundled OS sounds:
 
 ```
 plan.wav   — plan ready
