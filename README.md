@@ -3,6 +3,8 @@
 > "We are not the ones who state ideals — we are the ones who carry them out."
 > —— Perlica, Supervisor of Endfield Industries
 
+![Perlica - Supervisor of Endfield Industries](assets/avatar.png)
+
 🔔 A **Perlica-themed** (Arknights: Endfield) tiered sound notification plugin for DeepSeek Harness.
 
 Perlica reports your agent's status in her calm, concise, terminal-announcement tone: plan ready, task done, needs your input, error — each with its own sound. Plain conversation stays silent. Custom sounds (TTS voice supported) and audible even when the window is in the background.

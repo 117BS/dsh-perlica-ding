@@ -17,6 +17,7 @@
   "files": [
     "index.mjs",
     "cordis.patch.yml",
+    "assets",
     "README.md",
     "README.zh.md",
     "LICENSE"
