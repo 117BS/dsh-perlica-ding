@@ -35,36 +35,6 @@ Also:
 - **Cross-platform**: Windows (SoundPlayer) / macOS (afplay) / Linux (paplay/aplay)
 - **Configurable**: master switch, debounce, sound directory
 
-## 🎙️ Recommended voice lines (Perlica style)
-
-Pick your favorites and generate them with any TTS tool (Edge TTS / CapCut / Azure):
-
-**plan.wav — Plan ready**
-
-> ① "The operation plan is confirmed. Execute accordingly."
-> ② "The plan is ready, data complete. Confirm to proceed."
-> ③ "Deployment ready. On your confirmation, entering execution phase."
-
-**done.wav — Task done**
-
-> ① "Task executed. All indicators normal."
-> ② "Task complete. Results archived. Ready for review."
-> ③ "Operation finished, terminal archived. No anomalies this run."
-
-**ask.wav — Needs your input**
-
-> ① "Terminal report: pending decision requires the Administrator's ruling."
-> ② "Pending confirmation. This terminal cannot decide. Please instruct."
-> ③ "Authorization check failed: this decision exceeds local permissions. Please authorize."
-
-**fail.wav — Error**
-
-> ① "Warning: execution anomaly, task interrupted. Cause recorded. Please inspect."
-> ② "Task failed. System halted. Awaiting your instruction."
-> ③ "Fault detected: objective not reached. Terminal locked. Please troubleshoot."
-
-**Voice tips**: flat tone, steady pace, clean ending; a slight mechanical pause after statements adds the tech feel.
-
 ## 📦 Install
 
 ### From npm (recommended)
