@@ -13,19 +13,101 @@
  * Only root (main conversation) agents trigger sounds; subagents do not
  * beep individually. Each kind has its own debounce window.
  */
-import { existsSync } from 'node:fs'
-import { join, dirname } from 'node:path'
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import { join, dirname, basename } from 'node:path'
+import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import z from '@deepseek-ai/schemastery'
 
 /** Bundled sound directory (ships with the package: sounds/*.wav). */
 const BUNDLED_SOUNDS = join(dirname(fileURLToPath(import.meta.url)), 'sounds')
 
+/** Cache directory for volume-scaled WAV copies. */
+const CACHE_DIR = join(tmpdir(), 'dsh-perlica-ding')
+
 /** Cordis plugin name (Loader entry id). */
 export const name = 'dsh-perlica-ding'
 
 /** Hard dependency: the subprocess seam used to play sounds. */
 export const inject = ['subprocess']
+
+/**
+ * Scale a WAV file's PCM samples by `volume` percent and return the path of a
+ * cached copy. Pure JS: works on any platform without ffmpeg or system-volume
+ * changes. Returns the original path when the format is unsupported (non-PCM,
+ * exotic bit depths) or when scaling is a no-op.
+ *
+ * Supported: 8-bit and 16-bit PCM, including WAVE_FORMAT_EXTENSIBLE-wrapped PCM.
+ */
+function scaleWavVolume(srcPath, volume) {
+  const gain = volume / 100
+  if (gain === 1) return srcPath
+  let buf
+  try {
+    buf = readFileSync(srcPath)
+  } catch (error) {
+    return srcPath
+  }
+  if (buf.length < 44 || buf.toString('ascii', 0, 4) !== 'RIFF' || buf.toString('ascii', 8, 12) !== 'WAVE') {
+    return srcPath
+  }
+  let offset = 12
+  let audioFormat = 0
+  let bitsPerSample = 0
+  let dataOffset = -1
+  let dataSize = 0
+  while (offset + 8 <= buf.length) {
+    const id = buf.toString('ascii', offset, offset + 4)
+    const chunkSize = buf.readUInt32LE(offset + 4)
+    const body = offset + 8
+    if (id === 'fmt ' && chunkSize >= 16) {
+      audioFormat = buf.readUInt16LE(body)
+      bitsPerSample = buf.readUInt16LE(body + 14)
+      // WAVE_FORMAT_EXTENSIBLE (0xFFFE): the real format is the first 2 bytes
+      // of the sub-format GUID at body+24.
+      if (audioFormat === 0xfffe && chunkSize >= 40 && buf.readUInt16LE(body + 24) === 1) {
+        audioFormat = 1
+      }
+    } else if (id === 'data') {
+      dataOffset = body
+      dataSize = Math.min(chunkSize, buf.length - body)
+    }
+    if (dataOffset >= 0 && bitsPerSample > 0) break
+    offset = body + chunkSize + (chunkSize % 2)
+  }
+  if (dataOffset < 0 || audioFormat !== 1) return srcPath
+  const out = Buffer.from(buf)
+  if (bitsPerSample === 16) {
+    for (let i = 0; i + 1 < dataSize; i += 2) {
+      const pos = dataOffset + i
+      let v = Math.round(out.readInt16LE(pos) * gain)
+      if (v > 32767) v = 32767
+      else if (v < -32768) v = -32768
+      out.writeInt16LE(v, pos)
+    }
+  } else if (bitsPerSample === 8) {
+    for (let i = 0; i < dataSize; i++) {
+      const pos = dataOffset + i
+      let v = Math.round((out.readUInt8(pos) - 128) * gain + 128)
+      if (v > 255) v = 255
+      else if (v < 0) v = 0
+      out.writeUInt8(v, pos)
+    }
+  } else {
+    return srcPath
+  }
+  const dest = join(CACHE_DIR, basename(srcPath).replace(/\.wav$/i, '') + '-v' + volume + '-' + buf.length + '.wav')
+  try {
+    if (!existsSync(dest)) {
+      mkdirSync(CACHE_DIR, { recursive: true })
+      writeFileSync(dest, out)
+    }
+    return dest
+  } catch (error) {
+    console.error('dsh-perlica-ding: volume cache write failed', error)
+    return srcPath
+  }
+}
 
 /**
  * Tool names that count as "executing a task". Read-only / lookup tools
@@ -65,6 +147,12 @@ export const Config = z.object({
    * Empty string falls back to the process cwd, then to bundled OS sounds.
    */
   soundDir: z.string().default(''),
+  /**
+   * Playback volume in percent: 0 = silent, 100 = original sound level.
+   * Implemented by rescaling the WAV PCM samples (no system-volume change,
+   * no ffmpeg dependency). Non-PCM sources keep their original level.
+   */
+  volume: z.number().min(0).max(100).default(100),
   /**
    * Tool names that count as executing a task. Empty array = every tool
    * counts. Defaults to the built-in execution whitelist (DEFAULT_EXEC_TOOLS).
@@ -190,11 +278,13 @@ export function apply(ctx, config) {
 
   const play = (kind) => {
     if (!cfg.enabled) return
+    if (cfg.volume <= 0) return
     const now = Date.now()
     if (now - (lastPlayed[kind] || 0) < cfg.debounceMs) return
     lastPlayed[kind] = now
-    const file = resolveSound(kind)
-    if (!file) return
+    const resolved = resolveSound(kind)
+    if (!resolved) return
+    const file = cfg.volume < 100 ? scaleWavVolume(resolved, cfg.volume) : resolved
     if (platform === 'win32') {
       const escaped = file.replace(/'/g, "''")
       const script = "$p = New-Object Media.SoundPlayer '" + escaped + "'; $p.PlaySync()"

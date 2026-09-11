@@ -78,7 +78,41 @@ fail.wav   — error (optional)
 
 Requirement: must be real **WAV** (PCM). If your TTS tool exports MP3, convert first: `ffmpeg -i input.mp3 -acodec pcm_s16le plan.wav`.
 
-## ⚙️ Configuration
+## 🔊 Volume control
+
+Sounds too loud or too quiet? Tune them with the `volume` option (**0-100**; 0 = silent, 100 = original level, default 100).
+
+**Where to configure** — open your profile's user patch layer:
+
+```
+Windows: C:\Users\<you>\.dsh\profiles\web\cordis.patch.yml
+macOS/Linux: ~/.dsh/profiles/web/cordis.patch.yml
+```
+
+**Paste this in** (change `volume` to taste):
+
+```yaml
+- id: dsh-perlica-ding
+  config:
+    volume: 50
+```
+
+Takes effect immediately (config hot-reload, no restart needed).
+
+### Suggested levels
+
+| volume | Effect | When |
+|---|---|---|
+| `100` | Original level (default) | Noisy environment |
+| `60` | Slightly quieter | Headphones, quiet room |
+| `30` | Soft cue | Late night, library |
+| `0` | Fully muted | Temporarily off |
+
+> 💡 **How it works**: the plugin rescales the WAV PCM samples directly (zero dependencies, cross-platform) and **never touches your system volume**. Scaled copies are cached in the system temp directory, computed once per volume.
+>
+> ⚠️ **Note**: non-PCM audio sources (rare) fall back to the original level.
+
+## ⚙️ Advanced configuration
 
 In the profile's `cordis.yml` or the user patch layer:
 
@@ -86,6 +120,7 @@ In the profile's `cordis.yml` or the user patch layer:
 plugins:
   dsh-perlica-ding:
     enabled: true        # master switch
+    volume: 100          # 0-100 (0 = silent, 100 = original)
     debounceMs: 2500     # min gap between same-kind sounds (ms)
     soundDir: ""         # custom sound dir; empty = workspace root
     execTools: []        # tools that count as "executing a task"; empty = every tool counts (legacy)
