@@ -224,8 +224,6 @@ export function apply(ctx, config) {
   if (subprocess === undefined) return
   const agents = ctx.get('agents')
   const planMode = ctx.get('planMode')
-  const settings = ctx.get('settings')
-  const webServer = ctx.get('webServer')
 
   const platform = process.platform
   const lastPlayed = {}
@@ -234,19 +232,32 @@ export function apply(ctx, config) {
 
   /**
    * Runtime-adjusted volume (in-memory fallback when the settings service is
-   * unavailable); the settings namespace takes precedence when registered.
+   * unavailable); the settings namespace takes precedence once registered.
    */
   let runtimeVolume = null
 
-  /** The settings namespace owning the user-facing volume, when available. */
+  /**
+   * The settings namespace owning the user-facing volume. Like the web
+   * carrier, `settings` may not be active yet while this plugin applies during
+   * boot, so registration also goes through deferred injection.
+   */
   let volumeScope = null
-  if (settings) {
+  const registerVolumeSettings = (settingsService) => {
+    if (volumeScope) return
+    if (!settingsService) {
+      console.error('dsh-perlica-ding: settings unavailable; volume will not persist across restarts')
+      return
+    }
     try {
-      volumeScope = settings.register(
+      volumeScope = settingsService.register(
         'dsh-perlica-ding',
         z.object({ volume: z.number().min(0).max(100).default(100) }),
         { base: { volume: cfg.volume }, applies: 'live' },
       )
+      // Carry over a value the user picked before the namespace existed.
+      if (runtimeVolume !== null) {
+        Promise.resolve(volumeScope.update({ volume: runtimeVolume })).catch(() => {})
+      }
     } catch (error) {
       console.error('dsh-perlica-ding: settings registration failed', error)
     }
@@ -443,6 +454,16 @@ export function apply(ctx, config) {
     ctx.inject(['webServer'], (scope) => registerBridge(scope.webServer, scope))
   } else {
     console.error('dsh-perlica-ding: cannot defer-inject webServer; settings page bridge disabled')
+  }
+
+  // Same treatment for the settings namespace that persists the volume.
+  const settingsNow = ctx.get('settings')
+  if (settingsNow) {
+    registerVolumeSettings(settingsNow)
+  } else if (typeof ctx.inject === 'function') {
+    ctx.inject(['settings'], (scope) => registerVolumeSettings(scope.settings))
+  } else {
+    console.error('dsh-perlica-ding: cannot defer-inject settings; volume will not persist')
   }
 
   ctx.on('agent/inbox/claimed', (payload) => {
