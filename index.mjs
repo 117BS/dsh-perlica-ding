@@ -353,24 +353,36 @@ export function apply(ctx, config) {
   // --- settings page bridge (browser UI <-> host) ---------------------------
   // The client half renders a settings page with a volume slider and preview
   // buttons; it reaches this host half over a loopback HTTP route.
-  if (webServer) {
-    const readJsonBody = (req) => new Promise((resolve) => {
-      let data = ''
-      req.on('data', (chunk) => {
-        data += chunk
-        if (data.length > 65536) data = data.slice(0, 65536)
-      })
-      req.on('end', () => {
-        try {
-          resolve(JSON.parse(data || '{}'))
-        } catch (error) {
-          resolve({})
-        }
-      })
-      req.on('error', () => resolve({}))
+  //
+  // `webServer` is usually NOT active yet while this plugin applies during
+  // boot, so registration goes through a deferred injection: cordis runs the
+  // callback once the service becomes available (and never when the deployment
+  // has no web carrier — notifications keep working either way).
+  const readJsonBody = (req) => new Promise((resolve) => {
+    let data = ''
+    req.on('data', (chunk) => {
+      data += chunk
+      if (data.length > 65536) data = data.slice(0, 65536)
     })
+    req.on('end', () => {
+      try {
+        resolve(JSON.parse(data || '{}'))
+      } catch (error) {
+        resolve({})
+      }
+    })
+    req.on('error', () => resolve({}))
+  })
 
-    ctx.effect(() => webServer.register({
+  let bridgeRegistered = false
+  const registerBridge = (webServer, host) => {
+    if (bridgeRegistered) return
+    if (!webServer || !host) {
+      console.error('dsh-perlica-ding: webServer unavailable; settings page bridge disabled')
+      return
+    }
+    try {
+      host.effect(() => webServer.register({
       kind: 'prefix',
       path: '/perlica-ding/api',
       handler: async (req, res) => {
@@ -414,7 +426,23 @@ export function apply(ctx, config) {
           return send(500, { error: String((error && error.message) || error) })
         }
       },
-    }))
+      }))
+      bridgeRegistered = true
+      console.error('dsh-perlica-ding: settings bridge registered at /perlica-ding/api')
+    } catch (error) {
+      console.error('dsh-perlica-ding: settings bridge registration failed', error)
+    }
+  }
+
+  // Two shots at the web carrier: it may already be active (fast path), or it
+  // may come up after this plugin applies during boot (deferred injection).
+  const webServerNow = ctx.get('webServer')
+  if (webServerNow) {
+    registerBridge(webServerNow, ctx)
+  } else if (typeof ctx.inject === 'function') {
+    ctx.inject(['webServer'], (scope) => registerBridge(scope.webServer, scope))
+  } else {
+    console.error('dsh-perlica-ding: cannot defer-inject webServer; settings page bridge disabled')
   }
 
   ctx.on('agent/inbox/claimed', (payload) => {
