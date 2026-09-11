@@ -78,32 +78,28 @@ fail.wav   — error (optional)
 
 Requirement: must be real **WAV** (PCM). If your TTS tool exports MP3, convert first: `ffmpeg -i input.mp3 -acodec pcm_s16le plan.wav`.
 
-## 🔊 Volume control
+## 🔊 Volume control (with one-click preview)
 
-Sounds too loud or too quiet? Tune them with the `volume` option (**0-100**; 0 = silent, 100 = original level, default 100).
-
-**Where to configure** — open your profile's user patch layer:
+**Just open Settings**: go to DSH **Settings → 佩丽卡提示音 (Perlica Terminal)** and you get a panel:
 
 ```
-Windows: C:\Users\<you>\.dsh\profiles\web\cordis.patch.yml
-macOS/Linux: ~/.dsh/profiles/web/cordis.patch.yml
+Volume
+[==========|=========]  50%
+[Original 100%] [Medium 60%] [Soft 30%] [Mute 0%]
+
+Preview
+[Plan ready] [Task done] [Needs input] [Error]
 ```
 
-**Paste this in** (change `volume` to taste):
-
-```yaml
-- id: dsh-perlica-ding
-  config:
-    volume: 50
-```
-
-Takes effect immediately (config hot-reload, no restart needed).
+- **Drag the slider** or tap a **preset** (0 = silent, 100 = original) — saved automatically, effective immediately
+- Tap a **preview button** to play that sound right away, so you can find the right level **by ear** instead of guessing
+- Previews use the **exact same playback path** as real notifications — what you hear is what you get
 
 ### Suggested levels
 
 | volume | Effect | When |
 |---|---|---|
-| `100` | Original level (default) | Noisy environment |
+| `100` | Original level | Noisy environment |
 | `60` | Slightly quieter | Headphones, quiet room |
 | `30` | Soft cue | Late night, library |
 | `0` | Fully muted | Temporarily off |
@@ -114,13 +110,13 @@ Takes effect immediately (config hot-reload, no restart needed).
 
 ## ⚙️ Advanced configuration
 
-In the profile's `cordis.yml` or the user patch layer:
+The volume can also be set in config (as the **starting value**; anything chosen in the settings page wins). In the profile's `cordis.yml` or the user patch layer:
 
 ```yaml
 plugins:
   dsh-perlica-ding:
     enabled: true        # master switch
-    volume: 100          # 0-100 (0 = silent, 100 = original)
+    volume: 100          # initial volume 0-100 (settings page overrides)
     debounceMs: 2500     # min gap between same-kind sounds (ms)
     soundDir: ""         # custom sound dir; empty = workspace root
     execTools: []        # tools that count as "executing a task"; empty = every tool counts (legacy)

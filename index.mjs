@@ -160,6 +160,15 @@ export const Config = z.object({
   execTools: z.array(z.string()).default(DEFAULT_EXEC_TOOLS),
 })
 
+/** The four notification kinds and their user-facing labels. */
+const KINDS = ['plan', 'done', 'ask', 'fail']
+const KIND_LABELS = {
+  plan: '计划出方案',
+  done: '任务完成',
+  ask: '需要你回应',
+  fail: '出错',
+}
+
 /** Fallback system sounds per platform and kind. */
 const SYSTEM_SOUNDS = {
   win32: {
@@ -215,11 +224,47 @@ export function apply(ctx, config) {
   if (subprocess === undefined) return
   const agents = ctx.get('agents')
   const planMode = ctx.get('planMode')
+  const settings = ctx.get('settings')
+  const webServer = ctx.get('webServer')
 
   const platform = process.platform
   const lastPlayed = {}
   const turnStart = new Map()
   const lastTool = new Map()
+
+  /**
+   * Runtime-adjusted volume (in-memory fallback when the settings service is
+   * unavailable); the settings namespace takes precedence when registered.
+   */
+  let runtimeVolume = null
+
+  /** The settings namespace owning the user-facing volume, when available. */
+  let volumeScope = null
+  if (settings) {
+    try {
+      volumeScope = settings.register(
+        'dsh-perlica-ding',
+        z.object({ volume: z.number().min(0).max(100).default(100) }),
+        { base: { volume: cfg.volume }, applies: 'live' },
+      )
+    } catch (error) {
+      console.error('dsh-perlica-ding: settings registration failed', error)
+    }
+  }
+
+  /** Effective volume: user setting -> runtime value -> config -> 100. */
+  const currentVolume = () => {
+    if (volumeScope) {
+      try {
+        const value = volumeScope.get()
+        if (value && typeof value.volume === 'number' && Number.isFinite(value.volume)) {
+          return Math.max(0, Math.min(100, Math.round(value.volume)))
+        }
+      } catch (error) { /* fall through to config */ }
+    }
+    if (runtimeVolume !== null) return runtimeVolume
+    return cfg.volume
+  }
 
   const isRoot = (agent) => {
     if (!agents || !agent) return true
@@ -276,15 +321,20 @@ export function apply(ctx, config) {
     tryNext()
   }
 
-  const play = (kind) => {
+  /**
+   * Play one sound kind. `force` (used by the settings-page preview) skips the
+   * debounce so a user clicking through kinds hears every one immediately.
+   */
+  const play = (kind, force = false) => {
     if (!cfg.enabled) return
-    if (cfg.volume <= 0) return
+    const volume = currentVolume()
+    if (volume <= 0) return
     const now = Date.now()
-    if (now - (lastPlayed[kind] || 0) < cfg.debounceMs) return
+    if (!force && now - (lastPlayed[kind] || 0) < cfg.debounceMs) return
     lastPlayed[kind] = now
     const resolved = resolveSound(kind)
     if (!resolved) return
-    const file = cfg.volume < 100 ? scaleWavVolume(resolved, cfg.volume) : resolved
+    const file = volume < 100 ? scaleWavVolume(resolved, volume) : resolved
     if (platform === 'win32') {
       const escaped = file.replace(/'/g, "''")
       const script = "$p = New-Object Media.SoundPlayer '" + escaped + "'; $p.PlaySync()"
@@ -298,6 +348,73 @@ export function apply(ctx, config) {
     } else {
       spawnBeep([['paplay', file], ['aplay', file]])
     }
+  }
+
+  // --- settings page bridge (browser UI <-> host) ---------------------------
+  // The client half renders a settings page with a volume slider and preview
+  // buttons; it reaches this host half over a loopback HTTP route.
+  if (webServer) {
+    const readJsonBody = (req) => new Promise((resolve) => {
+      let data = ''
+      req.on('data', (chunk) => {
+        data += chunk
+        if (data.length > 65536) data = data.slice(0, 65536)
+      })
+      req.on('end', () => {
+        try {
+          resolve(JSON.parse(data || '{}'))
+        } catch (error) {
+          resolve({})
+        }
+      })
+      req.on('error', () => resolve({}))
+    })
+
+    ctx.effect(() => webServer.register({
+      kind: 'prefix',
+      path: '/perlica-ding/api',
+      handler: async (req, res) => {
+        const send = (code, payload) => {
+          res.writeHead(code, { 'content-type': 'application/json; charset=utf-8' })
+          res.end(JSON.stringify(payload))
+        }
+        try {
+          const path = (req.url || '').split('?')[0]
+          if (req.method === 'GET' && path === '/perlica-ding/api/state') {
+            return send(200, {
+              volume: currentVolume(),
+              enabled: cfg.enabled,
+              debounceMs: cfg.debounceMs,
+              persistent: !!volumeScope,
+              kinds: KINDS.map((id) => ({ id, label: KIND_LABELS[id] })),
+            })
+          }
+          if (req.method === 'POST' && path === '/perlica-ding/api/volume') {
+            const body = await readJsonBody(req)
+            const next = Math.round(Number(body && body.volume))
+            if (!Number.isFinite(next) || next < 0 || next > 100) {
+              return send(400, { error: 'volume must be a number between 0 and 100' })
+            }
+            if (volumeScope) {
+              await volumeScope.update({ volume: next })
+            } else {
+              runtimeVolume = next
+            }
+            return send(200, { volume: currentVolume() })
+          }
+          if (req.method === 'POST' && path === '/perlica-ding/api/preview') {
+            const body = await readJsonBody(req)
+            const kind = String((body && body.kind) || '')
+            if (!KINDS.includes(kind)) return send(400, { error: 'unknown sound kind' })
+            play(kind, true)
+            return send(200, { played: kind, volume: currentVolume() })
+          }
+          return send(404, { error: 'not found' })
+        } catch (error) {
+          return send(500, { error: String((error && error.message) || error) })
+        }
+      },
+    }))
   }
 
   ctx.on('agent/inbox/claimed', (payload) => {
