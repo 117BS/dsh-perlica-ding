@@ -104,7 +104,7 @@ function scaleWavVolume(srcPath, volume) {
     }
     return dest
   } catch (error) {
-    console.error('dsh-perlica-ding: volume cache write failed', error)
+    console.error('[dsh-perlica-ding] volume cache write failed', error)
     return srcPath
   }
 }
@@ -245,7 +245,7 @@ export function apply(ctx, config) {
   const registerVolumeSettings = (settingsService) => {
     if (volumeScope) return
     if (!settingsService) {
-      console.error('dsh-perlica-ding: settings unavailable; volume will not persist across restarts')
+      console.error('[dsh-perlica-ding] settings unavailable; volume will not persist across restarts')
       return
     }
     try {
@@ -259,7 +259,7 @@ export function apply(ctx, config) {
         Promise.resolve(volumeScope.update({ volume: runtimeVolume })).catch(() => {})
       }
     } catch (error) {
-      console.error('dsh-perlica-ding: settings registration failed', error)
+      console.error('[dsh-perlica-ding] settings registration failed', error)
     }
   }
 
@@ -320,12 +320,12 @@ export function apply(ctx, config) {
           graceMs: 3000,
         })
       } catch (error) {
-        console.error('dsh-perlica-ding: spawn failed', argv[0], error)
+        console.error('[dsh-perlica-ding] spawn failed', argv[0], error)
         tryNext()
         return
       }
       handle.done.catch((error) => {
-        console.error('dsh-perlica-ding: play process failed', argv[0], error)
+        console.error('[dsh-perlica-ding] play process failed', argv[0], error)
         tryNext()
       })
     }
@@ -389,7 +389,7 @@ export function apply(ctx, config) {
   const registerBridge = (webServer, host) => {
     if (bridgeRegistered) return
     if (!webServer || !host) {
-      console.error('dsh-perlica-ding: webServer unavailable; settings page bridge disabled')
+      console.error('[dsh-perlica-ding] webServer unavailable; settings page bridge disabled')
       return
     }
     try {
@@ -439,9 +439,9 @@ export function apply(ctx, config) {
       },
       }))
       bridgeRegistered = true
-      console.error('dsh-perlica-ding: settings bridge registered at /perlica-ding/api')
+      console.error('[dsh-perlica-ding] settings bridge registered at /perlica-ding/api')
     } catch (error) {
-      console.error('dsh-perlica-ding: settings bridge registration failed', error)
+      console.error('[dsh-perlica-ding] settings bridge registration failed', error)
     }
   }
 
@@ -453,7 +453,7 @@ export function apply(ctx, config) {
   } else if (typeof ctx.inject === 'function') {
     ctx.inject(['webServer'], (scope) => registerBridge(scope.webServer, scope))
   } else {
-    console.error('dsh-perlica-ding: cannot defer-inject webServer; settings page bridge disabled')
+    console.error('[dsh-perlica-ding] cannot defer-inject webServer; settings page bridge disabled')
   }
 
   // Same treatment for the settings namespace that persists the volume.
@@ -463,7 +463,7 @@ export function apply(ctx, config) {
   } else if (typeof ctx.inject === 'function') {
     ctx.inject(['settings'], (scope) => registerVolumeSettings(scope.settings))
   } else {
-    console.error('dsh-perlica-ding: cannot defer-inject settings; volume will not persist')
+    console.error('[dsh-perlica-ding] cannot defer-inject settings; volume will not persist')
   }
 
   ctx.on('agent/inbox/claimed', (payload) => {
@@ -521,7 +521,7 @@ export function apply(ctx, config) {
         if (tool >= start) play('done')
       }
     } catch (error) {
-      console.error('dsh-perlica-ding: turn-stopping handler failed', error)
+      console.error('[dsh-perlica-ding] turn-stopping handler failed', error)
     } finally {
       turnStart.delete(id)
       lastTool.delete(id)
