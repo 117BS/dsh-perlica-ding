@@ -229,6 +229,22 @@ function utf16leToBase64(text) {
 }
 
 /**
+ * Read a session's event log across host shapes. Older lines exposed an
+ * `events` array property; current lines expose `snapshotEvents()` /
+ * `ownEvents()` methods instead. Returns undefined when neither is available.
+ */
+function sessionEventsOf(agent) {
+  const session = agent && agent.session
+  if (!session) return undefined
+  try {
+    if (Array.isArray(session.events)) return session.events
+    if (typeof session.snapshotEvents === 'function') return session.snapshotEvents()
+    if (typeof session.ownEvents === 'function') return session.ownEvents()
+  } catch (error) { /* fall through */ }
+  return undefined
+}
+
+/**
  * Fold plan-mode state from the session event log: the last `plan/mode`
  * event wins; a log with none folds to inactive. Used when the `planMode`
  * service is unavailable in the current context.
@@ -648,8 +664,7 @@ export function apply(ctx, config) {
       } catch (error) { /* ignore */ }
     } else {
       try {
-        const events = payload.agent.session && payload.agent.session.events
-        active = foldPlanModeFromEvents(events)
+        active = foldPlanModeFromEvents(sessionEventsOf(payload.agent))
       } catch (error) { /* ignore */ }
     }
     try {
