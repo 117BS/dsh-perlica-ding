@@ -4,7 +4,7 @@
  * state / volume / preview endpoints behave, including the settings-backed
  * persistence path.
  */
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, existsSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Config, apply } from '../index.mjs'
@@ -21,11 +21,16 @@ for (const kind of ['plan', 'done', 'ask', 'fail']) {
 }
 
 /** Minimal fake of node:http req/res around a JSON body. */
-function fakeReq(method, url, body) {
+function fakeReq(method, url, body, extraHeaders) {
   const listeners = {}
   const req = {
     method,
     url,
+    headers: Object.assign(
+      { host: '127.0.0.1:3080' },
+      body !== undefined ? { 'content-type': 'application/json' } : null,
+      extraHeaders || null,
+    ),
     on(event, cb) {
       listeners[event] = cb
       return req
@@ -108,8 +113,8 @@ function makeCtx(initialVolume) {
   return ctx
 }
 
-async function call(ctx, method, url, body) {
-  const req = fakeReq(method, url, body)
+async function call(ctx, method, url, body, headers) {
+  const req = fakeReq(method, url, body, headers)
   const res = fakeRes()
   const promise = ctx._route.handler(req, res)
   req._fire()
@@ -165,16 +170,77 @@ assert(unknown.status === 400, 'unknown kind rejected with 400')
 const missing = await call(ctx, 'GET', '/perlica-ding/api/nope')
 assert(missing.status === 404, 'unknown route returns 404')
 
-// no settings service -> in-memory fallback still works
+// --- admission rules -------------------------------------------------------
+const crossOrigin = await call(ctx, 'GET', '/perlica-ding/api/state', undefined, { origin: 'https://evil.example' })
+assert(crossOrigin.status === 403, 'cross-origin request refused with 403')
+
+const sameOrigin = await call(ctx, 'GET', '/perlica-ding/api/state', undefined, { origin: 'http://127.0.0.1:3080' })
+assert(sameOrigin.status === 200, 'same-origin request admitted')
+
+const wrongType = await call(ctx, 'POST', '/perlica-ding/api/volume', { volume: 40 }, { 'content-type': 'text/plain' })
+assert(wrongType.status === 415, 'non-JSON content type refused with 415')
+
+// --- persistence tiers -----------------------------------------------------
+// A host whose settings service has no `register` (the DSH 0.2 shape) must
+// fall back to the plugin-owned file instead of losing the value.
+const storeDir = mkdtempSync(join(tmpdir(), 'dsh-perlica-store-'))
+process.env.DSH_PERLICA_DING_STORE = storeDir
+const ctxFile = makeCtx(100)
+const origGetFile = ctxFile.get
+ctxFile.get = (service) => {
+  if (service === 'settings') {
+    // SettingsForms-like object: present, but without register.
+    return { get: () => undefined, describe: () => [] }
+  }
+  return origGetFile(service)
+}
+apply(ctxFile, Config({ soundDir: dir, debounceMs: 100, volume: 100 }))
+
+const fileState = await call(ctxFile, 'GET', '/perlica-ding/api/state')
+assert(fileState.status === 200, 'state reachable on a register-less settings host')
+assert(fileState.body.persistent === true, 'register-less host reports persistent (file tier)')
+
+const fileWrite = await call(ctxFile, 'POST', '/perlica-ding/api/volume', { volume: 45 })
+assert(fileWrite.status === 200, 'volume write accepted on the file tier')
+const storePath = join(storeDir, 'volume.json')
+assert(existsSync(storePath), 'volume file created on disk')
+const stored = JSON.parse(readFileSync(storePath, 'utf8'))
+assert(stored.volume === 45, `file tier stored 45 (got ${stored && stored.volume})`)
+assert(fileWrite.body.volume === 45, 'file tier response echoes the stored volume')
+
+// A *fresh* plugin instance reading the same directory must see the value:
+// this is the restart path, exercised without a mock in between.
+const ctxRestart = makeCtx(100)
+const origGetRestart = ctxRestart.get
+ctxRestart.get = (service) => (service === 'settings' ? { describe: () => [] } : origGetRestart(service))
+apply(ctxRestart, Config({ soundDir: dir, debounceMs: 100, volume: 100 }))
+const restarted = await call(ctxRestart, 'GET', '/perlica-ding/api/state')
+assert(restarted.body.volume === 45, `volume survives a fresh instance (got ${restarted.body.volume})`)
+
+// --- master switch guard ---------------------------------------------------
+const ctxOff = makeCtx(100)
+apply(ctxOff, Config({ soundDir: dir, debounceMs: 100, volume: 100, enabled: false }))
+const offState = await call(ctxOff, 'GET', '/perlica-ding/api/state')
+assert(offState.body.enabled === false, 'state reports the master switch as off')
+const offPreview = await call(ctxOff, 'POST', '/perlica-ding/api/preview', { kind: 'done' })
+assert(offPreview.status === 409, 'preview refused with 409 while disabled')
+assert(ctxOff._spawns.length === 0, 'disabled preview spawns nothing')
+
+// --- last: no settings service at all -> file tier, still isolated ---------
+// Keep the redirect in place for this case too: an unisolated run would write
+// into the developer's real ~/.dsh directory.
+const storeDir2 = mkdtempSync(join(tmpdir(), 'dsh-perlica-store2-'))
+process.env.DSH_PERLICA_DING_STORE = storeDir2
 const ctx2 = makeCtx(100)
-let captured = null
 const origGet = ctx2.get
 ctx2.get = (service) => (service === 'settings' ? undefined : origGet(service))
 apply(ctx2, Config({ soundDir: dir, debounceMs: 100, volume: 100 }))
-captured = await call(ctx2, 'GET', '/perlica-ding/api/state')
-assert(captured.body.persistent === false, 'state flags non-persistent mode without settings')
+const captured = await call(ctx2, 'GET', '/perlica-ding/api/state')
+assert(captured.body.persistent === true, 'without settings the file tier still persists')
 const mem = await call(ctx2, 'POST', '/perlica-ding/api/volume', { volume: 20 })
-assert(mem.status === 200 && mem.body.volume === 20, 'in-memory volume fallback accepts writes')
+assert(mem.status === 200 && mem.body.volume === 20, 'volume write accepted without settings')
+assert(existsSync(join(storeDir2, 'volume.json')), 'no-settings fallback wrote to its own store dir')
+delete process.env.DSH_PERLICA_DING_STORE
 
 console.log(failed === 0 ? '\nALL BRIDGE TESTS PASSED' : `\n${failed} TEST(S) FAILED`)
 process.exit(failed === 0 ? 0 : 1)

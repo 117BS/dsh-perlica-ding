@@ -13,9 +13,10 @@
  * Only root (main conversation) agents trigger sounds; subagents do not
  * beep individually. Each kind has its own debounce window.
  */
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
-import { tmpdir } from 'node:os'
+import { tmpdir, homedir } from 'node:os'
+import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import z from '@deepseek-ai/schemastery'
 
@@ -24,6 +25,16 @@ const BUNDLED_SOUNDS = join(dirname(fileURLToPath(import.meta.url)), 'sounds')
 
 /** Cache directory for volume-scaled WAV copies. */
 const CACHE_DIR = join(tmpdir(), 'dsh-perlica-ding')
+
+/**
+ * Plugin-owned volume file, used when the host has no settings namespace.
+ * The directory is read per call so tests and custom deployments can redirect
+ * it through DSH_PERLICA_DING_STORE.
+ */
+const storeFile = () => join(
+  process.env.DSH_PERLICA_DING_STORE || join(homedir(), '.dsh', 'dsh-perlica-ding'),
+  'volume.json',
+)
 
 /** Cordis plugin name (Loader entry id). */
 export const name = 'dsh-perlica-ding'
@@ -96,7 +107,10 @@ function scaleWavVolume(srcPath, volume) {
   } else {
     return srcPath
   }
-  const dest = join(CACHE_DIR, basename(srcPath).replace(/\.wav$/i, '') + '-v' + volume + '-' + buf.length + '.wav')
+  // Content-addressed cache key: replacing a sound file (even with one of the
+  // same size) yields a different digest, so the stale copy is never reused.
+  const digest = createHash('sha1').update(buf).digest('hex').slice(0, 12)
+  const dest = join(CACHE_DIR, basename(srcPath).replace(/\.wav$/i, '') + '-v' + volume + '-' + digest + '.wav')
   try {
     if (!existsSync(dest)) {
       mkdirSync(CACHE_DIR, { recursive: true })
@@ -110,26 +124,39 @@ function scaleWavVolume(srcPath, volume) {
 }
 
 /**
- * Tool names that count as "executing a task". Read-only / lookup tools
- * (read, grep, glob, web_search, skill, ...) do NOT count: a plain Q&A that
- * happens to consult a file or search the web stays silent.
+ * Tool names that count as "executing a task" — i.e. the call produces or
+ * changes something outside the conversation: writes files, runs processes,
+ * delegates work, delivers results. Read-only / lookup tools (read, grep,
+ * glob, web_search, skill, ...) and conversation-local bookkeeping
+ * (todo_write) do NOT count, so plain Q&A stays silent.
  *
  * Override via config.execTools (array of tool names; empty array = every
  * tool counts, i.e. the old behavior).
  */
 const DEFAULT_EXEC_TOOLS = [
+  // processes and file mutation
   'pwsh',
   'bash',
   'write',
   'edit',
+  // delegation and result delivery
   'subagent',
   'subagent_fork',
+  'send_message',
+  'interrupt_agent',
   'workflow',
   'ralph',
+  // background jobs
+  'job_output',
   'job_kill',
+  // interactive terminals
+  'terminal_spawn',
+  'terminal_send',
+  'terminal_signal',
+  'terminal_kill',
+  // durable goal state and dynamic plugins
   'create_goal',
   'update_goal',
-  'todo_write',
   'cordis_define',
   'cordis_run',
   'cordis_stop',
@@ -231,21 +258,61 @@ export function apply(ctx, config) {
   const lastTool = new Map()
 
   /**
-   * Runtime-adjusted volume (in-memory fallback when the settings service is
-   * unavailable); the settings namespace takes precedence once registered.
+   * Runtime-adjusted volume (in-memory fallback when nothing can persist);
+   * a registered settings namespace or the plugin-owned file takes precedence.
    */
   let runtimeVolume = null
 
   /**
    * The settings namespace owning the user-facing volume. Like the web
    * carrier, `settings` may not be active yet while this plugin applies during
-   * boot, so registration also goes through deferred injection.
+   * boot, so registration goes through deferred injection.
+   *
+   * The host's settings service is not stable across DSH lines: 0.1.x exposes
+   * a provider with `register`, while 0.2.x replaces the same service key with
+   * a forms implementation that has none. The service is therefore
+   * feature-detected, and a host without `register` falls back to the
+   * plugin-owned file below instead of silently losing the value.
    */
   let volumeScope = null
+  let fileVolume = null
+  let fileVolumeLoaded = false
+
+  const readFileVolume = () => {
+    try {
+      const data = JSON.parse(readFileSync(storeFile(), 'utf8'))
+      if (data && typeof data.volume === 'number' && Number.isFinite(data.volume)) {
+        return Math.max(0, Math.min(100, Math.round(data.volume)))
+      }
+    } catch (error) { /* absent or damaged: fall back to config */ }
+    return null
+  }
+
+  const writeFileVolume = (volume) => {
+    try {
+      const dest = storeFile()
+      mkdirSync(dirname(dest), { recursive: true })
+      const tmp = dest + '.tmp'
+      writeFileSync(tmp, JSON.stringify({ volume, savedAt: new Date().toISOString() }, null, 2))
+      renameSync(tmp, dest)
+      return true
+    } catch (error) {
+      console.error('[dsh-perlica-ding] volume file write failed', error)
+      return false
+    }
+  }
+
+  const useFileStore = () => {
+    fileVolume = readFileVolume()
+    fileVolumeLoaded = true
+    console.error('[dsh-perlica-ding] persisting volume to ' + storeFile())
+  }
+
   const registerVolumeSettings = (settingsService) => {
-    if (volumeScope) return
-    if (!settingsService) {
-      console.error('[dsh-perlica-ding] settings unavailable; volume will not persist across restarts')
+    if (volumeScope || fileVolumeLoaded) return
+    if (!settingsService || typeof settingsService.register !== 'function') {
+      // Hosts like DSH 0.2 expose a settings service without `register`.
+      useFileStore()
       return
     }
     try {
@@ -259,11 +326,12 @@ export function apply(ctx, config) {
         Promise.resolve(volumeScope.update({ volume: runtimeVolume })).catch(() => {})
       }
     } catch (error) {
-      console.error('[dsh-perlica-ding] settings registration failed', error)
+      console.error('[dsh-perlica-ding] settings registration failed; using file storage', error)
+      useFileStore()
     }
   }
 
-  /** Effective volume: user setting -> runtime value -> config -> 100. */
+  /** Effective volume: settings namespace -> file -> runtime -> config. */
   const currentVolume = () => {
     if (volumeScope) {
       try {
@@ -271,10 +339,43 @@ export function apply(ctx, config) {
         if (value && typeof value.volume === 'number' && Number.isFinite(value.volume)) {
           return Math.max(0, Math.min(100, Math.round(value.volume)))
         }
-      } catch (error) { /* fall through to config */ }
+      } catch (error) { /* fall through to the next tier */ }
+    }
+    if (fileVolumeLoaded) {
+      if (fileVolume === null) fileVolume = readFileVolume()
+      if (fileVolume !== null) return fileVolume
     }
     if (runtimeVolume !== null) return runtimeVolume
     return cfg.volume
+  }
+
+  /** Whether this environment can store the volume across restarts. */
+  const canPersist = () => !!(volumeScope || fileVolumeLoaded)
+
+  /** Store one volume value through the active tier. Reports failures. */
+  const storeVolume = async (next) => {
+    if (volumeScope) {
+      await volumeScope.update({ volume: next })
+      return true
+    }
+    if (fileVolumeLoaded) {
+      if (!writeFileVolume(next)) {
+        throw new Error('无法写入音量文件：' + storeFile())
+      }
+      fileVolume = next
+      return true
+    }
+    runtimeVolume = next
+    return false
+  }
+
+  const cwdOf = (agent) => {
+    try {
+      const cwd = agent && agent.session && agent.session.header && agent.session.header.cwd
+      return typeof cwd === 'string' && cwd.length > 0 ? cwd : undefined
+    } catch (error) {
+      return undefined
+    }
   }
 
   const isRoot = (agent) => {
@@ -289,21 +390,28 @@ export function apply(ctx, config) {
 
   /**
    * First existing candidate for a sound kind:
-   * config soundDir -> workspace cwd -> bundled package sounds/ -> OS sounds.
+   * config soundDir -> session workspace -> bundled package sounds/ -> OS sounds.
    * Bundled sounds make the plugin work out of the box; users override by
-   * dropping their own wav into the workspace (or soundDir).
+   * dropping their own wav into the session workspace (or soundDir).
+   *
+   * The session workspace comes from `agent.session.header.cwd`, because
+   * `process.cwd()` is the host process's directory and may be unrelated to
+   * where the user keeps their files.
+   *
+   * Returns null when nothing exists, so no process is spawned for a missing
+   * file.
    */
-  const resolveSound = (kind) => {
+  const resolveSound = (kind, sessionCwd) => {
     const candidates = []
     if (cfg.soundDir) candidates.push(join(cfg.soundDir, kind + '.wav'))
-    candidates.push(join(process.cwd(), kind + '.wav'))
+    if (sessionCwd) candidates.push(join(sessionCwd, kind + '.wav'))
     candidates.push(join(BUNDLED_SOUNDS, kind + '.wav'))
     const sys = (SYSTEM_SOUNDS[platform] || {})[kind] || []
     candidates.push(...sys)
     for (const candidate of candidates) {
       if (existsSync(candidate)) return candidate
     }
-    return candidates[0] || null
+    return null
   }
 
   const spawnBeep = (attempts) => {
@@ -333,18 +441,25 @@ export function apply(ctx, config) {
   }
 
   /**
-   * Play one sound kind. `force` (used by the settings-page preview) skips the
-   * debounce so a user clicking through kinds hears every one immediately.
+   * Play one sound kind.
+   *
+   * @param kind - which sound to play.
+   * @param force - preview mode: skip the debounce so a user clicking through
+   *   kinds hears every one immediately.
+   * @param sessionCwd - the session workspace used to locate a custom wav.
    */
-  const play = (kind, force = false) => {
+  const play = (kind, force = false, sessionCwd = undefined) => {
     if (!cfg.enabled) return
     const volume = currentVolume()
     if (volume <= 0) return
     const now = Date.now()
     if (!force && now - (lastPlayed[kind] || 0) < cfg.debounceMs) return
     lastPlayed[kind] = now
-    const resolved = resolveSound(kind)
-    if (!resolved) return
+    const resolved = resolveSound(kind, sessionCwd)
+    if (!resolved) {
+      console.error('[dsh-perlica-ding] no sound file found for "' + kind + '"; nothing played')
+      return
+    }
     const file = volume < 100 ? scaleWavVolume(resolved, volume) : resolved
     if (platform === 'win32') {
       const escaped = file.replace(/'/g, "''")
@@ -403,14 +518,33 @@ export function apply(ctx, config) {
         }
         try {
           const path = (req.url || '').split('?')[0]
+          const headers = req.headers || {}
+          // Loopback-only surface: require a same-origin browser caller (or no
+          // Origin header at all, which is how non-browser clients arrive).
+          const origin = headers.origin
+          if (typeof origin === 'string' && origin.length > 0) {
+            let sameOrigin = false
+            try {
+              sameOrigin = new URL(origin).host === headers.host
+            } catch (error) {
+              sameOrigin = false
+            }
+            if (!sameOrigin) return send(403, { error: 'cross-origin request refused' })
+          }
           if (req.method === 'GET' && path === '/perlica-ding/api/state') {
             return send(200, {
               volume: currentVolume(),
               enabled: cfg.enabled,
               debounceMs: cfg.debounceMs,
-              persistent: !!volumeScope,
+              persistent: canPersist(),
               kinds: KINDS.map((id) => ({ id, label: KIND_LABELS[id] })),
             })
+          }
+          if (req.method === 'POST') {
+            const contentType = String(headers['content-type'] || '')
+            if (!contentType.includes('application/json')) {
+              return send(415, { error: 'content-type must be application/json' })
+            }
           }
           if (req.method === 'POST' && path === '/perlica-ding/api/volume') {
             const body = await readJsonBody(req)
@@ -418,14 +552,13 @@ export function apply(ctx, config) {
             if (!Number.isFinite(next) || next < 0 || next > 100) {
               return send(400, { error: 'volume must be a number between 0 and 100' })
             }
-            if (volumeScope) {
-              await volumeScope.update({ volume: next })
-            } else {
-              runtimeVolume = next
-            }
-            return send(200, { volume: currentVolume() })
+            const stored = await storeVolume(next)
+            return send(200, { volume: currentVolume(), persistent: stored || canPersist() })
           }
           if (req.method === 'POST' && path === '/perlica-ding/api/preview') {
+            if (!cfg.enabled) {
+              return send(409, { error: '插件已停用，试听不可用' })
+            }
             const body = await readJsonBody(req)
             const kind = String((body && body.kind) || '')
             if (!KINDS.includes(kind)) return send(400, { error: 'unknown sound kind' })
@@ -456,14 +589,16 @@ export function apply(ctx, config) {
     console.error('[dsh-perlica-ding] cannot defer-inject webServer; settings page bridge disabled')
   }
 
-  // Same treatment for the settings namespace that persists the volume.
+  // Same treatment for the settings namespace that persists the volume. When
+  // no settings service is reachable at all (and none can be waited for), the
+  // plugin-owned file tier takes over rather than degrading to memory.
   const settingsNow = ctx.get('settings')
   if (settingsNow) {
     registerVolumeSettings(settingsNow)
   } else if (typeof ctx.inject === 'function') {
     ctx.inject(['settings'], (scope) => registerVolumeSettings(scope.settings))
   } else {
-    console.error('[dsh-perlica-ding] cannot defer-inject settings; volume will not persist')
+    registerVolumeSettings(undefined)
   }
 
   ctx.on('agent/inbox/claimed', (payload) => {
@@ -480,18 +615,23 @@ export function apply(ctx, config) {
   })
 
   ctx.on('tools/execute', (exec, next) => {
-    if (exec && exec.name === 'ask_user_question') play('ask')
+    // Same root-only rule as the turn sounds: a subagent asking a question must
+    // not beep the human.
+    if (exec && exec.name === 'ask_user_question' && (!exec.agent || isRoot(exec.agent))) {
+      play('ask', false, cwdOf(exec.agent))
+    }
     return next()
   })
 
   ctx.on('approval/request', (req, next) => {
-    play('ask')
+    const agent = req && req.agent
+    if (!agent || isRoot(agent)) play('ask', false, cwdOf(agent))
     return next()
   })
 
   ctx.on('agent/error', (payload) => {
     if (!payload || !isRoot(payload.agent)) return
-    play('fail')
+    play('fail', false, cwdOf(payload.agent))
   })
 
   ctx.on('agent/turn-stopping', (payload) => {
@@ -514,11 +654,11 @@ export function apply(ctx, config) {
     }
     try {
       if (active) {
-        play('plan')
+        play('plan', false, cwdOf(payload.agent))
       } else {
         const start = turnStart.get(id) || 0
         const tool = lastTool.get(id) || 0
-        if (tool >= start) play('done')
+        if (tool >= start) play('done', false, cwdOf(payload.agent))
       }
     } catch (error) {
       console.error('[dsh-perlica-ding] turn-stopping handler failed', error)

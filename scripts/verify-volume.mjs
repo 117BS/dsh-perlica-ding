@@ -148,5 +148,88 @@ handlers2['tools/result']({ agent: { id: 'root' }, name: 'write' })
 handlers2['agent/turn-stopping']({ agent: { id: 'root' } })
 assert(played2 === join(dir2, 'done.wav'), 'non-WAV source falls back to the original file')
 
+// --- content-addressed cache key -------------------------------------------
+// Replacing a sound with a DIFFERENT wave of the SAME byte length must produce
+// a different cache entry, otherwise the old scaled copy keeps playing.
+const dir3 = mkdtempSync(join(tmpdir(), 'dsh-perlica-vol3-'))
+const soundA = makeWav([1000, 2000, 3000, 4000])
+const soundB = makeWav([1111, 2222, 3333, 4444])
+assert(soundA.length === soundB.length, 'test waves share a byte length')
+writeFileSync(join(dir3, 'done.wav'), soundA)
+
+function captureFrom(dirPath, volume) {
+  const store = {}
+  let captured = null
+  const c = {
+    get(service) {
+      if (service === 'subprocess') {
+        return {
+          spawn(spec) {
+            const script = Buffer.from(spec.argv[spec.argv.length - 1], 'base64').toString('utf16le')
+            const m = script.match(/'([^']+\.wav)'/)
+            captured = m ? m[1] : null
+            return { done: new Promise(() => {}) }
+          },
+        }
+      }
+      if (service === 'agents') return { roots: () => [{ id: 'root' }] }
+      return undefined
+    },
+    on(event, listener) { store[event] = listener },
+    effect(fn) { return fn() },
+  }
+  apply(c, Config({ soundDir: dirPath, debounceMs: 100, volume }))
+  store['agent/inbox/claimed']({ agent: { id: 'root' } })
+  store['tools/result']({ agent: { id: 'root' }, name: 'write' })
+  store['agent/turn-stopping']({ agent: { id: 'root' } })
+  return captured
+}
+
+Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 150)
+const cachedA = captureFrom(dir3, 50)
+Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 150)
+writeFileSync(join(dir3, 'done.wav'), soundB)
+const cachedB = captureFrom(dir3, 50)
+assert(cachedA !== null && cachedB !== null, 'both plays produced a cached copy')
+assert(cachedA !== cachedB, 'replacing a same-length sound yields a new cache entry')
+if (cachedB && existsSync(cachedB)) {
+  const got = readSamples(cachedB)
+  const expected = [1111, 2222, 3333, 4444].map((s) => Math.round(s * 0.5))
+  assert(JSON.stringify(got) === JSON.stringify(expected), `new sound is what plays: ${JSON.stringify(got)}`)
+}
+
+// --- session workspace lookup ----------------------------------------------
+// The workspace wav must be found through agent.session.header.cwd, not the
+// host process cwd.
+const dir4 = mkdtempSync(join(tmpdir(), 'dsh-perlica-ws-'))
+writeFileSync(join(dir4, 'done.wav'), makeWav(SOURCE))
+const store4 = {}
+let played4 = null
+const ctx4 = {
+  get(service) {
+    if (service === 'subprocess') {
+      return {
+        spawn(spec) {
+          const script = Buffer.from(spec.argv[spec.argv.length - 1], 'base64').toString('utf16le')
+          const m = script.match(/'([^']+\.wav)'/)
+          played4 = m ? m[1] : null
+          return { done: new Promise(() => {}) }
+        },
+      }
+    }
+    if (service === 'agents') return { roots: () => [{ id: 'root' }] }
+    return undefined
+  },
+  on(event, listener) { store4[event] = listener },
+  effect(fn) { return fn() },
+}
+// No soundDir: only the session workspace can supply the file.
+apply(ctx4, Config({ debounceMs: 100, volume: 100 }))
+const agentWithWs = { id: 'root', session: { header: { cwd: dir4 } } }
+store4['agent/inbox/claimed']({ agent: agentWithWs })
+store4['tools/result']({ agent: agentWithWs, name: 'write' })
+store4['agent/turn-stopping']({ agent: agentWithWs })
+assert(played4 === join(dir4, 'done.wav'), `session workspace sound is used (got ${played4})`)
+
 console.log(failed === 0 ? '\nALL VOLUME TESTS PASSED' : `\n${failed} TEST(S) FAILED`)
 process.exit(failed === 0 ? 0 : 1)
