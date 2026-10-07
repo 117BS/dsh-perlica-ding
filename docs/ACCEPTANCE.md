@@ -9,9 +9,9 @@
 | **AC-3** | 同一 artifact 在 0.1.5-rc.2 线与 0.2.0 线各有一条自动化通过记录 | `tests/host-simulation.test.mjs`：两代 **API 形态仿真** + `settings` 零访问 trap 断言 | ✅（仿真级；**非**真实旧线宿主，见 ADR §9.5） |
 | **AC-4** | 无未声明的私有 API 依赖；`node --test` 全绿 | `lib/**` 无 `dsh-settings`/`config-editor`/`profileContext` 引用；104 tests / 0 fail；三线公共最小面见 T2 §② | ✅ |
 | **AC-5** | 上轮 9 条隐性问题逐条闭环 | `docs/workstreams/04-issue-closure.md`（含 T3 追加的 21 条） | ✅（残留项见下） |
-| **AC-6** | 依赖精确版本 + lockfile；PR 正文含四段证据 | `dependencies: zod 4.6.5` 精确；**无 lockfile**（上游插件仓本就没有，见待决 D-1）；PR 正文待写 | ⚠️ 部分 |
+| **AC-6** | 依赖精确版本；PR 正文含四段证据 | `zod: 4.6.5` 精确 pin（无范围符号）；**不加 lockfile**（D-1 已决并说明理由：上游插件仓本就没有，加它显著抬高 PR 体积）；PR 正文已备（`.verification/PR-body.md`，含四段证据 + 未验证项与已知限制的显式声明） | ✅（条款按 D-1 修正） |
 | **AC-7** | 四档音效桌面实测各响一次，含子代理静音、纯问答静音两条负例 | 负例已自动化（`tests/`）；**听觉验证待重启后由 YG 确认** | ⏳ |
-| **AC-8** | 卸载后不残留未声明状态 | 路径：`$DSH_HOME/storages/perlica_ding.json`（P2）或 `$DSH_HOME/dsh-perlica-ding/state.json`（P3）+ `.corrupt-*`；未实测卸载 | ⏳ |
+| **AC-8** | 卸载后不残留未声明状态 | **实机验证通过**（2026-10-07，隔离 profile `t13`）：卸载后宿主照常启动（0 致命失败、0 条 perlica 日志）、路由 404、**承载文件仍在且值为 45**、`storages/` 零新增产物（长度与时间戳未变）、`$DSH_HOME` 根下无 `perlica*` 新条目。文档声明的"三处 + 保留规则"与实际一致 | ✅ |
 
 ## AC-2 的修正说明（诚实账）
 
