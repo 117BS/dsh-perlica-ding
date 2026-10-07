@@ -4,7 +4,7 @@
 
 | # | 判据 | 证据 | 状态 |
 |---|---|---|---|
-| **AC-1** | 桌面版改音量 → **完全退出** → 重启 → 值保持；且 `$DSH_HOME` 下存在承载文件 | **待 YG 重启**（前置：`.verification/state-log.txt` 的 s0/s1 基线；安装已就位） | ⏳ 阻塞在重启 |
+| **AC-1** | 桌面版改音量 → **完全退出** → 重启 → 值保持；且 `$DSH_HOME` 下存在承载文件 | 离线部分**已证**（见下"重启前的离线证明"1–5）；真实重启待 YG | ⏳ 仅剩重启 |
 | **AC-2**（已修正） | web profile 上同样通过；且唯一网络面是那一条 hardened 路由 | 未开始 | ⏳ |
 | **AC-3** | 同一 artifact 在 0.1.5-rc.2 线与 0.2.0 线各有一条自动化通过记录 | `tests/host-simulation.test.mjs`：两代 **API 形态仿真** + `settings` 零访问 trap 断言 | ✅（仿真级；**非**真实旧线宿主，见 ADR §9.5） |
 | **AC-4** | 无未声明的私有 API 依赖；`node --test` 全绿 | `lib/**` 无 `dsh-settings`/`config-editor`/`profileContext` 引用；104 tests / 0 fail；三线公共最小面见 T2 §② | ✅ |
@@ -17,7 +17,25 @@
 
 原条款写的是"插件不再注册任何自建 HTTP 路由（传输由 adapter 承载）"——那是在"纯标准组件"假设下写的。**实际采用原生通道 + 一条 hardened 路由**（理由见 ADR §4.4/§4.5：std 通道需要第三方 adapter 且无 provider），所以该条款的后半句**不再适用**，改为"唯一网络面是那一条路由，且 Origin/Content-Type/大小准入有测试覆盖"（`tests/host-negative.test.mjs` + `tests/host-simulation.test.mjs`）。这不是降标，是把条款对齐到已决架构。
 
-## 待决（需要 YG 或后续轮次）
+## 重启前的离线证明（AC-1 的预备证据）
+
+全部在**装出来的那份**（`profiles/desktop/node_modules/dsh-perlica-ding`，`file:` 快照）上完成：
+
+1. **入口解析**：`import('dsh-perlica-ding')` → 导出 `Config,apply,inject,name`；内部裸导入 `@deepseek-ai/schemastery` / `zod` / `@deepseek-ai/dsh-storage-domain` 全部解析成功。
+   > 反例：`link:` 安装会让 realpath 落到开发目录，裸导入**解析失败**（`Cannot find package '@deepseek-ai/schemastery'`）→ 已改用 `file:`。
+2. **完整装配**：`apply(fakeCtx)` → `GET /state` 200（`persistent:true, kind:"P3"`）；`POST /volume {30}` 落盘；跨站 `Origin` → 403；缺 `Origin` → 200；播放链 spawn 成功；`dispose()` 干净。
+3. **spec 校验**：用宿主自己的 `defineDomain` 跑我们逐字相同的 spec → 通过（`perlica_ding` / `tables:["settings"]`）。
+4. **P2 带外往返**（真 `JsonStorageBackend` + 临时 root）：
+   - 写 `{volume:30}` → `tables.settings.volume = {volume:30}`；
+   - **换一个后端实例读同一 root → 仍是 30**（重启的类比）；
+   - 承载文件确定为 `<root>/perlica_ding.json`（`single` 布局，源码 `storage-json/lib/index.js:569-575` 的 `join(root, name + ".json")`），内容形如
+     `{"unit":{"name":"perlica_ding","version":1},"global":null,"tables":{"settings":{"volume":{"volume":30}}}}`
+     → 真实路径即 `$DSH_HOME\storages\perlica_ding.json`，与 `.verification/capture-state.ps1` 的探测路径一致。
+5. **注入面惰性**：`dsh-plugin.json` 不被 harness 自身清单包引用（`plugin-package-inventory-deepseek` / `host-plugin-inventory` 零引用；插件管理器只认 `dsh.bundle`）。
+
+**仍未证**：P2 在真实宿主里经 `ctx.storageDomain` 的注入与单例（`already-open`）行为；真实 `webServer` 注册；客户端模块在真实浏览器里的加载。
+
+
 
 - **D-1**：是否为本仓加 `pnpm-lock.yaml`？上游插件仓无 lockfile，加它会让 PR 变大；但精确锁定依赖是更稳的工程实践。
 - **D-2**：`T7`（dsh-std fork 内参考 LocalStorage provider）是否本轮交付——它让 P1 档真正可用，但不影响任何现有宿主。
