@@ -39,10 +39,10 @@ Also:
 
 ## 📦 Install
 
-### From GitHub (recommended, no npm account needed)
+### From npm (recommended)
 
 ```bash
-dsh plugin --profile web add https://github.com/117BS/dsh-perlica-ding
+dsh plugin --profile web add dsh-perlica-ding
 ```
 
 Restart the web profile to activate:
@@ -51,10 +51,10 @@ Restart the web profile to activate:
 dsh web restart
 ```
 
-### From npm (once published)
+### From GitHub
 
 ```bash
-dsh plugin --profile web add dsh-perlica-ding
+dsh plugin --profile web add https://github.com/117BS/dsh-perlica-ding
 ```
 
 ### Local development

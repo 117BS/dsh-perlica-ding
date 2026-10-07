@@ -39,10 +39,10 @@
 
 ## 📦 安装
 
-### 方法一：从 GitHub 安装（推荐，无需 npm 账号）
+### 方法一：从 npm 安装（推荐）
 
 ```bash
-dsh plugin --profile web add https://github.com/117BS/dsh-perlica-ding
+dsh plugin --profile web add dsh-perlica-ding
 ```
 
 安装后**重启 dsh web profile** 生效：
@@ -51,10 +51,10 @@ dsh plugin --profile web add https://github.com/117BS/dsh-perlica-ding
 dsh web restart
 ```
 
-### 方法二：从 npm 安装（npm 发布后可用）
+### 方法二：从 GitHub 安装
 
 ```bash
-dsh plugin --profile web add dsh-perlica-ding
+dsh plugin --profile web add https://github.com/117BS/dsh-perlica-ding
 ```
 
 ### 方法三：本地开发安装
