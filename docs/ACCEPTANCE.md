@@ -4,13 +4,13 @@
 
 | # | 判据 | 证据 | 状态 |
 |---|---|---|---|
-| **AC-1** | 桌面版改音量 → **完全退出** → 重启 → 值保持；且 `$DSH_HOME` 下存在承载文件 | 离线部分**已证**（见下"重启前的离线证明"）；**承载文件已在场**：`$DSH_HOME\storages\perlica_ding.json` 现为 `volume:45`（由 AC-2 的 web 宿主写入）→ 桌面重启后若显示 45，即为"跨进程从盘读回"的独立证据 | ⏳ 仅剩重启 |
+| **AC-1** | 桌面版改音量 → **完全退出** → 重启 → 值保持；且 `$DSH_HOME` 下存在承载文件 | **通过**（2026-10-07 11:56）。证据链：11:37 承载文件为 `45`（AC-2 的 web 宿主写入）→ 11:5x 复核仍为 `45`（T13 卸载验证时实测）→ **11:56:04 变为 `30`**，而该时刻**早于当前实例启动（11:56:16）**；旧插件在 0.2 线上无写盘能力（正是本次修复的缺陷），故写入者只能是新插件 → 当前实例 `/state` 返回 `volume:30, persistent:true, kind:"P2"`，即**跨进程从盘读回**。承载文件：`$DSH_HOME\storages\perlica_ding.json` | ✅ |
 | **AC-2**（已修正） | web profile 上同样通过；且唯一网络面是那一条 hardened 路由 | **真服务器实测通过**（`dsh --profile web --port 19456 --no-open`，验完即停）：`GET /state` → 200 `persistent:true kind:"P2"`；`POST /volume {45}` → 落盘；读回 45；跨站 Origin → **403**；非法值 → **400**；错 Content-Type → **415**。浏览器 UI 渲染未验 | ✅（除浏览器渲染） |
 | **AC-3** | 同一 artifact 在 0.1.5-rc.2 线与 0.2.0 线各有一条自动化通过记录 | `tests/host-simulation.test.mjs`：两代 **API 形态仿真** + `settings` 零访问 trap 断言 | ✅（仿真级；**非**真实旧线宿主，见 ADR §9.5） |
 | **AC-4** | 无未声明的私有 API 依赖；`node --test` 全绿 | `lib/**` 无 `dsh-settings`/`config-editor`/`profileContext` 引用；**111 tests / 0 fail**；三线公共最小面见 T2 §② | ✅ |
 | **AC-5** | 上轮 9 条隐性问题逐条闭环 | `docs/workstreams/04-issue-closure.md`（含 T3 追加的 21 条） | ✅（残留项见下） |
 | **AC-6** | 依赖精确版本；PR 正文含四段证据 | `zod: 4.6.5` 精确 pin（无范围符号）；**不加 lockfile**（D-1 已决并说明理由：上游插件仓本就没有，加它显著抬高 PR 体积）；PR 正文已备（`.verification/PR-body.md`，含四段证据 + 未验证项与已知限制的显式声明） | ✅（条款按 D-1 修正） |
-| **AC-7** | 四档音效桌面实测各响一次，含子代理静音、纯问答静音两条负例 | 负例已自动化（`tests/`）；**听觉验证待重启后由 YG 确认** | ⏳ |
+| **AC-7** | 四档音效桌面实测各响一次，含子代理静音、纯问答静音两条负例 | 两条负例已自动化（`tests/`）；**机制已在桌面宿主上验**：`POST /preview {kind:"done"}` → 200，且当场捕获到带 `SoundPlayer` 的 PowerShell 播放进程；**听感**由 YG 确认 | ✅（机制）/ 待听觉确认 |
 | **AC-8** | 卸载后不残留未声明状态 | **实机验证通过**（2026-10-07，隔离 profile `t13`）：卸载后宿主照常启动（0 致命失败、0 条 perlica 日志）、路由 404、**承载文件仍在且值为 45**、`storages/` 零新增产物（长度与时间戳未变）、`$DSH_HOME` 根下无 `perlica*` 新条目。文档声明的"三处 + 保留规则"与实际一致 | ✅ |
 
 ## AC-2 的修正说明（诚实账）
@@ -88,4 +88,4 @@
 
 - ~~**D-1**：是否为本仓加 `pnpm-lock.yaml`？~~ → **已决：不加**。上游插件仓本就无 lockfile，加它会显著抬高 PR 体积；供应链风险由**精确版本 pin** 覆盖（`zod: 4.6.5`，无范围符号），且这是库型包不是应用。上游若要求锁文件再补。
 - ~~**D-2**：`T7`（dsh-std fork 内参考 LocalStorage provider）是否交付？~~ → **已撤（有证据）**。T13 证明标准 facet **无法启动引擎**（std activation context 不暴露产品服务、dsh-std 无宿主副作用协议），所以补一个 LocalStorage provider 也不会让 P1 变成可用档位——那是为不存在的场景写实现。真正的解锁条件见 ADR §9.8。
-- ~~**D-3**：推分支到 org fork 与开 PR 需确认？~~ → **分支已推**（`ENDFIELD-TERRA/dsh-perlica-ding@feat/dsh-std-component` = `2c9fcc3`）；**PR 按 YG 裁决等 AC-1 验完再开**，正文已备于 `.verification/PR-body.md`。
+- ~~**D-3**：推分支到 org fork 与开 PR 需确认？~~ → **已完成**：分支 `ENDFIELD-TERRA/dsh-perlica-ding@feat/dsh-std-component`，**PR 已开**（2026-10-07，AC-1 验毕后按 YG 裁决）→ https://github.com/117BS/dsh-perlica-ding/pull/2 ，正文即 `.verification/PR-body.md`。
