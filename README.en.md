@@ -159,6 +159,12 @@ The built-in whitelist covers these groups: **command and terminal execution** /
 - **Failures are not silent**: a rejected write propagates all the way to the settings page and is reported there. A damaged local file (not JSON, root not an object, `volume` not a number) is renamed and kept as `state.json.corrupt-<timestamp>`, then treated as "nothing stored" so the volume falls back to the default (the next save writes a fresh file) — **your existing data is never overwritten**.
 - **Why `ctx.settings` is gone**: on the 0.1.5 and 0.2.x lines `ctx.settings` is the **same name with a different shape** (the old line offers `register`, the new one does not). The previous implementation swallowed the error inside its own `try/catch`, which is exactly how "the settings page says saved" got detached from "it is actually stored". The plugin now relies only on the three tiers above and never touches `ctx.settings`.
 - **Standard channel**: the package ships a `dsh-plugin.json`, so a host with `@dsh-std/adapter-dsh` installed discovers it automatically and loads the host facet. Both channels share one activation path and **one one-shot activation token**: whoever arrives first activates, the other only logs a line. So even when a host satisfies both channel conditions, the plugin **plays once and writes once** (the mechanism assumes a package is evaluated once; rationale and the experiment live in `docs/adr/0001-persistence-seam.md`).
+- **What an uninstall leaves behind**: exactly three places, all declared here —
+  1. `$DSH_HOME/storages/perlica_ding.json` (where the host-storage tier writes) or `$DSH_HOME/dsh-perlica-ding/state.json` (the local-file tier, present only when host storage is unavailable);
+  2. a derived `state.json.corrupt-<timestamp>` when a file is damaged (kept on purpose instead of overwritten);
+  3. `dsh-perlica-ding/` under the system temp directory — the WAV scaling cache, pure derived data you may delete at any time.
+
+  **Uninstalling does not delete your volume**, and the plugin never writes into profile configuration (no entry of its own appears there). To remove every trace, delete 1 and 3 by hand.
 
 ## 🧪 Verify
 
