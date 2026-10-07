@@ -68,6 +68,6 @@
 
 ## 待决（需要 YG 或后续轮次）
 
-- **D-1**：是否为本仓加 `pnpm-lock.yaml`？上游插件仓无 lockfile，加它会让 PR 变大；但精确锁定依赖是更稳的工程实践。
-- **D-2**：`T7`（dsh-std fork 内参考 LocalStorage provider）是否本轮交付——它让 P1 档真正可用，但不影响任何现有宿主。
-- **D-3**：推分支到 org fork 与开 PR 需你确认（远端记录）。
+- ~~**D-1**：是否为本仓加 `pnpm-lock.yaml`？~~ → **已决：不加**。上游插件仓本就无 lockfile，加它会显著抬高 PR 体积；供应链风险由**精确版本 pin** 覆盖（`zod: 4.6.5`，无范围符号），且这是库型包不是应用。上游若要求锁文件再补。
+- ~~**D-2**：`T7`（dsh-std fork 内参考 LocalStorage provider）是否交付？~~ → **已撤（有证据）**。T13 证明标准 facet **无法启动引擎**（std activation context 不暴露产品服务、dsh-std 无宿主副作用协议），所以补一个 LocalStorage provider 也不会让 P1 变成可用档位——那是为不存在的场景写实现。真正的解锁条件见 ADR §9.8。
+- ~~**D-3**：推分支到 org fork 与开 PR 需确认？~~ → **分支已推**（`ENDFIELD-TERRA/dsh-perlica-ding@feat/dsh-std-component` = `2c9fcc3`）；**PR 按 YG 裁决等 AC-1 验完再开**，正文已备于 `.verification/PR-body.md`。
