@@ -4,8 +4,8 @@
 
 | # | 判据 | 证据 | 状态 |
 |---|---|---|---|
-| **AC-1** | 桌面版改音量 → **完全退出** → 重启 → 值保持；且 `$DSH_HOME` 下存在承载文件 | 离线部分**已证**（见下"重启前的离线证明"1–5）；真实重启待 YG | ⏳ 仅剩重启 |
-| **AC-2**（已修正） | web profile 上同样通过；且唯一网络面是那一条 hardened 路由 | 未开始 | ⏳ |
+| **AC-1** | 桌面版改音量 → **完全退出** → 重启 → 值保持；且 `$DSH_HOME` 下存在承载文件 | 离线部分**已证**（见下"重启前的离线证明"）；**承载文件已在场**：`$DSH_HOME\storages\perlica_ding.json` 现为 `volume:45`（由 AC-2 的 web 宿主写入）→ 桌面重启后若显示 45，即为"跨进程从盘读回"的独立证据 | ⏳ 仅剩重启 |
+| **AC-2**（已修正） | web profile 上同样通过；且唯一网络面是那一条 hardened 路由 | **真服务器实测通过**（`dsh --profile web --port 19456 --no-open`，验完即停）：`GET /state` → 200 `persistent:true kind:"P2"`；`POST /volume {45}` → 落盘；读回 45；跨站 Origin → **403**；非法值 → **400**；错 Content-Type → **415**。浏览器 UI 渲染未验 | ✅（除浏览器渲染） |
 | **AC-3** | 同一 artifact 在 0.1.5-rc.2 线与 0.2.0 线各有一条自动化通过记录 | `tests/host-simulation.test.mjs`：两代 **API 形态仿真** + `settings` 零访问 trap 断言 | ✅（仿真级；**非**真实旧线宿主，见 ADR §9.5） |
 | **AC-4** | 无未声明的私有 API 依赖；`node --test` 全绿 | `lib/**` 无 `dsh-settings`/`config-editor`/`profileContext` 引用；104 tests / 0 fail；三线公共最小面见 T2 §② | ✅ |
 | **AC-5** | 上轮 9 条隐性问题逐条闭环 | `docs/workstreams/04-issue-closure.md`（含 T3 追加的 21 条） | ✅（残留项见下） |
@@ -34,6 +34,12 @@
 5. **注入面惰性**：`dsh-plugin.json` 不被 harness 自身清单包引用（`plugin-package-inventory-deepseek` / `host-plugin-inventory` 零引用；插件管理器只认 `dsh.bundle`）。
 
 **仍未证**：P2 在真实宿主里经 `ctx.storageDomain` 的注入与单例（`already-open`）行为；真实 `webServer` 注册；客户端模块在真实浏览器里的加载。
+
+### 追加：AC-2 真服务器实测的两个发现（2026-10-07）
+
+1. **P2 在真实宿主上成立**（此前 T5-store 与 T9/T10 都把它标为唯一未闭合项）：真 `dsh web` 宿主里 `/state` 报 `kind:"P2"`，写入后 `<root>/perlica_ding.json` 出现，
+   形状与离线预测**逐字一致**：`{"unit":{"name":"perlica_ding","version":1},"global":null,"tables":{"settings":{"volume":{"volume":45}}}`。
+2. **`dsh plugin add` 与裸 `pnpm add` 不等价**（我第一次装 web profile 时踩到）：裸 `pnpm add` 只写 `dependencies`，**不写 `dsh.profile.bundles`**，于是插件根本不装载（路由 404，日志零 `perlica` 行）；把包名补进 bundles 后立刻生效。用 `dsh plugin --profile <name> add` 时这一步由安装器自动完成。
 
 
 
