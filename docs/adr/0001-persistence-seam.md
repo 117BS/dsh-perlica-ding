@@ -164,4 +164,5 @@ capabilities(): { persistent: boolean, kind: 'P1'|'P2'|'P3'|'none' }
 5. 0.1.5 线的 loader 版本无直接观测（T2 遗留 a）——AC-3 的"旧线"以 **API 形态仿真**为准，不作为真实宿主证据。
 6. **P1（std LocalStorage）已声明但有意未接线**：两个入口都没有向 `createVolumeStore` 传入 `storageProviders`，因为 DSH 侧与 dsh-std 侧当前都不存在合规 provider（T1 §5.1），接线即死代码。改变条件：T7（我们的 dsh-std fork 内参考 provider）落地并被安装后，由 facet 在 `activate(context)` 里用 `context.protocols.client(...)` 构造 P1 provider 传入——届时本 ADR 与 README 需同步回改。
 7. 设置页只显示"能/不能持久化"两态，**不显示档位名**（`capabilities().kind` 已随 `/state` 传递）。若要求显示档位名，需改 UI 后回填文档。
+8. **标准通道的成因性缺口（T13 实测，2026-10-07）**：std `ActivationContext`（`@dsh-std/lifecycle` 的接口声明）只有 `identity / plan / scope / protocols / extensions`，其中 `scope` 是 `CleanupScope` —— **不暴露任何产品服务**；而本插件的宿主侧需要进程 spawn（播放）、agent 回合事件（判定）、HTTP 路由（设置页），dsh-std 目前没有"宿主侧副作用"协议。因此：facet 的契约是**如实报 `degraded` + 一行诊断，绝不抛错**（初版把 `context.scope` 当产品 context 直接传进引擎，导致 std-only 宿主 `fatal load failure` —— 整台起不来）。改变条件：dsh-std 定义出宿主副作用协议（或某个 adapter 愿意通过**已声明**的协议暴露等价能力）之后，facet 才可能成为活路径。
 

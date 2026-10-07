@@ -43,7 +43,24 @@
 
 
 
-## 已知限制（不粉饰）
+### 追加：T13 —— 双载/守卫证伪实验（2026-10-07，隔离 profile `t13`）
+
+在 `t13`（从 web 模板新建，装 `@dsh-std/adapter-dsh@0.1.1-rc.4` + 本插件）上做了三种配置的**真启动**：
+
+| 配置 | 结果 |
+|---|---|
+| 两通道同时可入选（`bundles` 与 `dependencies` 都有） | 宿主启动无致命失败；facet 打一行缺口诊断；原生通道正常（`kind:"P2"`，写 60 后落盘核验一致）；`already-open` 计 **0** → **确认无双载** |
+| 仅原生通道（只在 `bundles`） | 正常，即常规路径 |
+| **仅标准通道**（只在 `dependencies`） | **发现并修掉一个真 bug**：facet 把标准 activation context 当产品 context 用 → `TypeError: ctx.get is not a function` → `fatal load failure`，**整台宿主起不来**。修复后：宿主正常启动、一行 `degraded` 诊断、路由 404（正确地不假装工作） |
+
+**由 T13 得出的两条结论**
+
+1. **dsh-std 目前无法承载这个插件的宿主侧**：标准 `ActivationContext`（`@dsh-std/lifecycle:81-95`）只有 identity / plan / scope / protocols / extensions，`scope` 是 `CleanupScope`，**不暴露任何产品服务**；而引擎需要进程 spawn、agent 回合事件、HTTP 路由，dsh-std 也没有"宿主侧副作用"协议。因此标准通道是**声明面**，不是可用路径——README 已按此如实改写，P1 的未接线状态同理。
+2. **两个真 bug（均已修 + 有测试）**：`activateHost` 在 claim 之后抛错**不释放令牌** → 一次失败让插件在该进程永久死亡；facet 的 `deactivate` 用模块级"曾诊断过缺口"状态判断该不该拆 → 会漏拆或错拆。前者改为 `activateHost` 只负责令牌生命周期、失败必释放；后者改为记录"本次是否由本 facet 启动"。
+
+**顺带确认的运维事实**：pnpm 对 `file:` 依赖报 `Already up to date` 时**不会刷新快照**（`--force` 也无效），必须 `pnpm remove <pkg>` + `pnpm add file:...` 才真正重解析。改过代码后只用 `pnpm install` 会让"我测的"与"你跑的"不是同一份代码。
+
+
 
 - **跨进程并发写**：宿主存储档（P2）落在 `$DSH_HOME/storages/perlica_ding.json`，后端是 **single 布局的整文件重写**，且 `storageDomain` 的 `already-open` 只在本进程内生效。因此**同时**运行两个宿主（例如桌面应用 + 另一个 `dsh web`）并各自改一次音量时，存在后写覆盖先写的窗口。影响面：音量设置、写入极稀疏。
 - **P1 未接线**：见 ADR §9.6。

@@ -158,7 +158,7 @@ fail.wav   — 出错（"警告：执行异常，任务中断"）（可选）
 - **逐级降级，选中即固定**：音量在三个档位里按可用性挑一个，本进程内不再切换——**标准 storage**（dsh-std 的 `storage.dsh/v1alpha1 LocalStorage`）→ **宿主存储**（DSH 自带的 `storageDomain` 数据域）→ **本地文件**（`$DSH_HOME/dsh-perlica-ding/state.json`，临时文件 + rename 原子写；`$DSH_HOME` 未设置时为 `~/.dsh`）。当前版本**实际接通的是后两级**：标准 storage 档需要 std 宿主提供 provider，插件已把它声明为**可选**依赖——拿不到就静默降级，不会因此装载失败。
 - **失败不静默**：写入失败会一路抛到设置页并明确报错；本地文件损坏（不是 JSON、根不是对象、`volume` 不是数字）时会被改名保留为 `state.json.corrupt-<时间戳>`，然后按"没有存档"处理，回落到默认音量（下一次保存会写一个新文件），**不会**覆盖你已有的数据。
 - **为什么不再用 `ctx.settings`**：0.1.5 与 0.2.x 两条线上 `ctx.settings` 是**同名不同型**的服务（旧线提供 `register`，新线没有）。旧实现把异常吞在自己的 `try/catch` 里，于是"设置页显示已保存"和"真的存下来了"脱钩。现在只依赖上面三档，不再碰 `ctx.settings`。
-- **标准通道**：包内自带 `dsh-plugin.json`，宿主装了 `@dsh-std/adapter-dsh` 时会被自动发现并装载 host facet。两条通道共用同一份激活逻辑和**一个一次性激活令牌**：先到者激活，另一条只记一行日志，因此即使同时满足两条通道的入选条件，也**只播一次、只写一次**（该机制以"同一个包只求值一次"为前提，依据与实验见 `docs/adr/0001-persistence-seam.md`）。
+- **标准通道（当前状态的诚实说明）**：包内自带 `dsh-plugin.json`，宿主装了 `@dsh-std/adapter-dsh` 时会被发现并装载 host facet——但**它现在还撑不起这个插件**。标准 activation context 只提供 identity / plan / scope / protocols / extensions，`scope` 是清理作用域，**不暴露任何产品服务**；而提示音引擎恰恰需要进程 spawn、agent 回合事件、HTTP 路由，dsh-std 目前也没有定义"宿主侧副作用"协议。因此该 facet 会**如实报告 `degraded` 并给出原因**，既不会假装可用，也不会让宿主启动失败（实测：仅标准通道的宿主能正常启动并打出一行诊断；反之让 facet 去碰产品服务会以 `TypeError: ctx.get is not a function` 打死整个 boot，这正是我们修掉的）。DSH 宿主上请用 bundle 入口。两条通道共用同一份激活逻辑与**一个一次性激活令牌**，先到者激活，因此不存在双播/双写。
 - **卸载后会留下什么**：只有下面三处，全部在此声明——
   1. `$DSH_HOME/storages/perlica_ding.json`（宿主存储档的实际落点）或 `$DSH_HOME/dsh-perlica-ding/state.json`（本地文件档，只在宿主存储不可用时出现）；
   2. 文件损坏时派生出的 `state.json.corrupt-<时间戳>`（刻意保留，不覆盖你的数据）；
