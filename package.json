@@ -1,13 +1,15 @@
 {
   "name": "dsh-perlica-ding",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "佩丽卡终端 (Perlica Terminal)：明日方舟终末地佩丽卡主题的分级任务提示音插件。计划出方案、任务完成、需要你回应、出错时播放不同提示音，普通问答静音。Perlica-themed tiered sound notifications for DeepSeek Harness: plan ready, task done, needs your input, error tones.",
   "type": "module",
   "main": "index.mjs",
   "exports": {
     ".": "./index.mjs",
-    "./client": "./lib/client.js",
+    "./client": "./lib/browser/index.js",
+    "./facet": "./lib/host/facet-std.mjs",
     "./cordis.patch.yml": "./cordis.patch.yml",
+    "./dsh-plugin.json": "./dsh-plugin.json",
     "./package.json": "./package.json"
   },
   "dsh": {
@@ -25,6 +27,7 @@
     "index.mjs",
     "lib",
     "cordis.patch.yml",
+    "dsh-plugin.json",
     "assets",
     "sounds",
     "README.md",
@@ -32,7 +35,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "verify": "node scripts/verify.mjs && node scripts/verify-volume.mjs && node scripts/verify-settings.mjs"
+    "verify": "node --test"
   },
   "keywords": [
     "dsh",
@@ -53,6 +56,9 @@
     "提示音"
   ],
   "license": "MIT",
+  "dependencies": {
+    "zod": "4.6.5"
+  },
   "peerDependencies": {
     "@deepseek-ai/cordis": "*",
     "@deepseek-ai/schemastery": "*"
