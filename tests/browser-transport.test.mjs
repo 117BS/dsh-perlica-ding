@@ -133,12 +133,15 @@ test('getState: missing kind degrades to "none" and absent kinds to []', async (
   assert.deepEqual(state.kinds, [])
 })
 
-test('getState: junk kind entries are dropped, valid ones survive', async () => {
+test('getState: junk kind entries are dropped, and an unknown tier passes through', async () => {
   const { impl } = recordingFetch([
     jsonResponse(200, { volume: 10, kind: 'P9', kinds: [{ id: 'plan', label: '计划' }, { id: 7 }, null, 'x'] }),
   ])
   const state = await createTransport({ fetchImpl: impl }).getState()
-  assert.equal(state.kind, 'none')
+  // `persistent` is the only authority for "can this environment store the value":
+  // an unrecognised tier is diagnostics, not "cannot persist" (ADR §9.6/§9.8 expect
+  // further tiers to appear, and the old whitelist would have reported them as none).
+  assert.equal(state.kind, 'P9')
   assert.deepEqual(state.kinds, [{ id: 'plan', label: '计划' }])
 })
 
