@@ -24,7 +24,7 @@ This plugin's sound style is inspired by her — **clean, concise, with a touch 
 | Scenario | Trigger | Sound file |
 |---|---|---|
 | 🗂️ Plan ready | Turn closes while plan mode is active | `plan.wav` |
-| ✅ Task done | Turn closes and **execution-class tools** were used (file writes / commands / subagents / workflows …) | `done.wav` |
+| ✅ Task done | Turn closes and **execution-class tools** ran (tools that produce or change a side effect outside the conversation: commands / file writes / subagents / workflows / terminals / background jobs …) | `done.wav` |
 | 💬 Plain chat | No tools used, or only lookup tools (read / web_search …) | Silent |
 | 🙋 Needs your input | `ask_user_question` tool / approval request | `ask.wav` |
 | ⚠️ Error | Agent turn errored | `fail.wav` |
@@ -35,7 +35,8 @@ Also:
 - **Debounce**: 2.5s per kind, no sound storms
 - **Custom sounds**: drop wav files into the sound dir, no code changes
 - **Cross-platform**: Windows (SoundPlayer) / macOS (afplay) / Linux (paplay/aplay)
-- **Configurable**: master switch, debounce, sound directory
+- **Configurable**: master switch, starting volume, debounce, sound directory, execution-tool whitelist
+- **Persistent volume**: what you set in the settings page is stored and survives a restart (see "Persistence and compatibility")
 
 ## 📦 Install
 
@@ -74,7 +75,16 @@ ask.wav    — needs your input
 fail.wav   — error (optional)
 ```
 
-**To use your own sounds**: generate wav files with any TTS tool and drop them into your **workspace root** (or the configured `soundDir`); same-named files override the bundled ones, effective immediately without restart. Lookup order: configured dir → workspace → bundled → OS fallback.
+**To use your own sounds**: generate wav files with any TTS tool and drop them into the **current session's working directory** (or the configured `soundDir`); same-named files override the bundled ones. The lookup runs again before every playback, so swapping a file needs **no restart**.
+
+Lookup order (first hit wins):
+
+1. the configured `soundDir` (when non-empty)
+2. the **current session's working directory** (that session's own cwd; with several sessions running, the one that started first)
+3. the `sounds/` bundled in the package
+4. OS sounds (picked per platform and per kind — Windows / macOS / Linux differ)
+
+The first three look for `<directory>/<kind>.wav` (`plan.wav` / `done.wav` / `ask.wav` / `fail.wav`). If all four miss, nothing is played — the plugin never hands a non-existent path to the player.
 
 Requirement: must be real **WAV** (PCM). If your TTS tool exports MP3, convert first: `ffmpeg -i input.mp3 -acodec pcm_s16le plan.wav`.
 
@@ -91,9 +101,13 @@ Preview
 [Plan ready] [Task done] [Needs input] [Error]
 ```
 
-- **Drag the slider** or tap a **preset** (0 = silent, 100 = original) — saved automatically, effective immediately
+- **Drag the slider** or tap a **preset** (0 = silent, 100 = original); on release the value is written to the plugin's **persistent store**, and the next playback uses it
+- **A failed save says so**: if the write does not land, the slider returns to the last saved value and the panel shows `保存失败：…` below it — never a "looks saved but isn't"
+- The panel tells you whether this environment **can persist at all**: "设置会自动保存并立即生效" when it can, "当前环境无法持久化，重启后恢复默认" when it cannot
 - Tap a **preview button** to play that sound right away, so you can find the right level **by ear** instead of guessing
 - Previews use the **exact same playback path** as real notifications — what you hear is what you get
+
+> A volume of `0` **skips playback** (mute) rather than playing a silent audio file.
 
 ### Suggested levels
 
@@ -110,25 +124,59 @@ Preview
 
 ## ⚙️ Advanced configuration
 
-The volume can also be set in config (as the **starting value**; anything chosen in the settings page wins). In the profile's `cordis.yml` or the user patch layer:
+Config lives in the **profile's `cordis.patch.yml`** (the user patch layer). The shape is a **row array**, with `id` addressing the plugin entry; the plugin's keys sit under `config:`:
 
 ```yaml
-plugins:
-  dsh-perlica-ding:
-    enabled: true        # master switch
-    volume: 100          # initial volume 0-100 (settings page overrides)
-    debounceMs: 2500     # min gap between same-kind sounds (ms)
-    soundDir: ""         # custom sound dir; empty = workspace root
-    execTools: []        # tools that count as "executing a task"; empty = every tool counts (legacy)
+- id: dsh-perlica-ding
+  name: dsh-perlica-ding
+  config:
+    enabled: true
+    volume: 100
+    debounceMs: 2500
+    soundDir: ""
+    execTools: []
 ```
+
+> ⚠️ Do not put this in `cordis.yml`, and do not write it as a `plugins: { dsh-perlica-ding: {...} }` mapping — neither form works on the current harness. A profile's `cordis.yml` is an **empty entry list**; it only anchors the Loader's mount root, and its own header says to edit `cordis.patch.yml` instead.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `enabled` | `true` | Master switch. `false` silences all four kinds |
+| `volume` | `100` | Starting volume 0-100. **Takes effect only when the plugin cannot persist**; when it can, the saved volume wins (100 when nothing was ever saved). See "Persistence and compatibility" |
+| `debounceMs` | `2500` | Minimum gap between two plays of the same kind, in ms, 100-60000. **Each kind has its own window**; a non-numeric value means no limit at all |
+| `soundDir` | `""` | Custom sound directory. Empty means "go to the next step" (the current session's working directory) |
+| `execTools` | built-in whitelist | Which tools count as "executing a task" — see below |
+
+**How `execTools` is judged**: a tool counts if and only if it **produces or changes a side effect outside the conversation**. Tools that only *read* the world (file reads, grep, glob, web search, listings, `cordis_inspect_*`) never count; neither does bookkeeping like `todo_write`, which runs on almost every turn and would otherwise make plain chat ring the "task done" sound.
+
+The built-in whitelist covers these groups: **command and terminal execution** / **file and deliverable writes** / **subagent and team work** / **workflows and dynamic plugins** / **background job control** / **durable goal state**. It filters **observed tool names**, so it is not a tool catalog: a name listed there but never registered by your deployment costs nothing.
+
+`execTools: []` (empty array) keeps the legacy meaning: **every tool counts as execution**. Use it when your deployment registers execution-class tools the whitelist does not know.
+
+## 💾 Persistence and compatibility
+
+- **Ordered degradation, then fixed**: the volume picks one of three tiers by availability and keeps it for the whole process — **standard storage** (dsh-std's `storage.dsh/v1alpha1 LocalStorage`) → **host storage** (DSH's own `storageDomain` data form) → **local file** (`$DSH_HOME/dsh-perlica-ding/state.json`, written atomically via temp file + rename; `$DSH_HOME` is `~/.dsh` when unset). The current version **wires the last two**: the standard-storage tier needs a std host that provides the protocol, so the plugin declares it **optional** — when it is missing, the store degrades silently instead of failing to load.
+- **Failures are not silent**: a rejected write propagates all the way to the settings page and is reported there. A damaged local file (not JSON, root not an object, `volume` not a number) is renamed and kept as `state.json.corrupt-<timestamp>`, then treated as "nothing stored" so the volume falls back to the default (the next save writes a fresh file) — **your existing data is never overwritten**.
+- **Why `ctx.settings` is gone**: on the 0.1.5 and 0.2.x lines `ctx.settings` is the **same name with a different shape** (the old line offers `register`, the new one does not). The previous implementation swallowed the error inside its own `try/catch`, which is exactly how "the settings page says saved" got detached from "it is actually stored". The plugin now relies only on the three tiers above and never touches `ctx.settings`.
+- **Standard channel**: the package ships a `dsh-plugin.json`, so a host with `@dsh-std/adapter-dsh` installed discovers it automatically and loads the host facet. Both channels share one activation path and **one one-shot activation token**: whoever arrives first activates, the other only logs a line. So even when a host satisfies both channel conditions, the plugin **plays once and writes once** (the mechanism assumes a package is evaluated once; rationale and the experiment live in `docs/adr/0001-persistence-seam.md`).
 
 ## 🧪 Verify
 
-Ask the agent to run any task (e.g. call a tool); you should hear a sound when it finishes. Or test the audio chain manually:
+**By hand**: ask the agent to run any task (e.g. call a tool); you should hear a sound when it finishes. Or test the audio chain manually first:
 
 ```powershell
 $p = New-Object Media.SoundPlayer 'D:\deepseek\done.wav'; $p.PlaySync()
 ```
+
+**Self-check**:
+
+```bash
+npm run verify
+```
+
+That is `node --test`, running the cases under `tests/` (no install needed first). These cases **do not mock the thing under test**: the persistence cases round-trip through a **real filesystem** (temporary directories), including "the value is still there for a fresh store instance", "a damaged file is renamed and kept" and "a real write failure is propagated"; the decision and playback cases run against the **real assembly** (the real turn decider, engine and sound lookup order).
+
+> The early `scripts/verify-*.mjs` files were replaced by `tests/` and removed — they checked the plugin against mocks and hid a real persistence defect on a live host. Treat `npm run verify` as the entry point.
 
 ## 📄 License
 
