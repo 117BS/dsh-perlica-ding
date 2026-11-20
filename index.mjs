@@ -395,13 +395,10 @@ export function apply(ctx, config) {
   }
 
   const isRoot = (agent) => {
-    if (!agents || !agent) return true
-    try {
-      const roots = agents.roots()
-      return roots.some((a) => a.id === agent.id)
-    } catch (error) {
-      return true
-    }
+    // 宿主权威判据：header.origin === 'subagent' 即子代理会话（旧版 agents.roots() 不存在，
+    // 每次调用都 TypeError 被 catch 兜成 true，导致子代理也响铃）。
+    if (!agent) return true
+    return agent.session?.header?.origin !== 'subagent'
   }
 
   /**
